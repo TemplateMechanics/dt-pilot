@@ -299,7 +299,7 @@ The payload Monaco sends to Dynatrace, with parameter substitution via Go templa
 
 ### Anti-patterns
 
-- **Inventing parameter names that don't appear in `config.yaml`.** Monaco will fail at deploy with a "parameter not defined" error and your dry-run will not catch it.
+- **Inventing parameter names that don't appear in `config.yaml`.** Monaco renders templates during `monaco deploy --dry-run` (and therefore inside `Validate-Monaco.ps1` and `Invoke-MonacoDryRun.ps1`), so an undefined parameter reference surfaces as a render error well before any real deploy. Treat that dry-run error as the first signal — don't bypass it by hand-substituting the value.
 - **Hand-templating JSON syntax** (commas, brackets) with Go template control flow. Get a valid JSON shape first, then parameterize. The harder it is to read, the harder it is to review.
 - **Embedding tenant URLs or tokens** in `template.json`. They go in `manifest.yaml`'s `environments` block as env-var-backed `url` / `auth` entries.
 
