@@ -45,15 +45,17 @@ if ($content -notmatch '(?m)^\s*manifestVersion\s*:') {
 $projectNames = @()
 $inProjects = $false
 foreach ($line in (Get-Content -LiteralPath $manifest)) {
-    if ($line -match '^\s*projects\s*:') { $inProjects = $true; continue }
-    if ($inProjects) {
-        if ($line -match '^\s*[A-Za-z_]+\s*:') {
-            # Hit a new top-level key in the manifest — projects section ended.
-            if ($line -notmatch '^\s*-') { $inProjects = $false; continue }
-        }
-        if ($line -match '^\s*-\s*name\s*:\s*(\S+)') {
-            $projectNames += $Matches[1].Trim('"').Trim("'")
-        }
+    # End the projects: section when we hit any *unindented* (zero leading
+    # whitespace) top-level key. Indented `key:` lines inside the section
+    # are nested fields like `projects[].path` or `projects[].type` and
+    # must NOT terminate the walk.
+    if ($line -match '^[A-Za-z_]+\s*:') {
+        if ($line -match '^\s*projects\s*:') { $inProjects = $true; continue }
+        $inProjects = $false
+        continue
+    }
+    if ($inProjects -and $line -match '^\s*-\s*name\s*:\s*(\S+)') {
+        $projectNames += $Matches[1].Trim('"').Trim("'")
     }
 }
 

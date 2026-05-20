@@ -44,19 +44,20 @@ if ($content -notmatch '(?m)^\s*environmentGroups\s*:') {
     $errors.Add("missing top-level 'environmentGroups' field")
 }
 
-# Find project names and check that each has an on-disk directory.
+# Find project names and check that each has an on-disk directory. End the
+# projects: section on any *unindented* (zero leading whitespace) top-level
+# key. Indented `key:` lines inside the section are nested fields like
+# `projects[].path` or `projects[].type` and must NOT terminate the walk.
 $projectNames = @()
 $inProjects = $false
 foreach ($line in (Get-Content -LiteralPath $manifest)) {
-    if ($line -match '^\s*projects\s*:') { $inProjects = $true; continue }
-    if ($inProjects) {
-        if ($line -match '^\s*[A-Za-z_]+\s*:' -and $line -notmatch '^\s*-') {
-            $inProjects = $false
-            continue
-        }
-        if ($line -match '^\s*-\s*name\s*:\s*(\S+)') {
-            $projectNames += $Matches[1].Trim('"').Trim("'")
-        }
+    if ($line -match '^[A-Za-z_]+\s*:') {
+        if ($line -match '^\s*projects\s*:') { $inProjects = $true; continue }
+        $inProjects = $false
+        continue
+    }
+    if ($inProjects -and $line -match '^\s*-\s*name\s*:\s*(\S+)') {
+        $projectNames += $Matches[1].Trim('"').Trim("'")
     }
 }
 
@@ -68,13 +69,31 @@ foreach ($p in $projectNames) {
     }
 }
 
-# Check for env-var-backed URL/auth — flag literal URLs and inline tokens as a smell.
-foreach ($line in (Get-Content -LiteralPath $manifest)) {
+# Check for env-var-backed URL/auth: flag both literal URLs and inline
+# token / OAuth secret values. The convention is `type: environment` +
+# `value: <ENV_VAR_NAME>` for URLs, and `name: <ENV_VAR_NAME>` (resolved
+# from the env at deploy time) for tokens. Anything else is a smell.
+$lines = Get-Content -LiteralPath $manifest
+for ($i = 0; $i -lt $lines.Count; $i++) {
+    $line = $lines[$i]
     if ($line -match '^\s*value\s*:\s*(https?://\S+)') {
         $errors.Add("literal URL in manifest: '$($Matches[1])'. Use type: environment with an env-var name instead.")
     }
-    if ($line -match '^\s*name\s*:\s*[A-Z][A-Z0-9_]{8,}\s*$') {
-        # heuristic: this is fine — env var names are SHOUT_CASE. Do nothing.
+    # Detect an inline token under token: / platformToken: / clientId: /
+    # clientSecret:. Monaco's contract is that these blocks resolve from
+    # env vars via the `name:` field; a peer `value:` here means the
+    # secret was inlined.
+    if ($line -match '^\s*(token|platformToken|clientId|clientSecret)\s*:\s*$') {
+        $authKey = $Matches[1]
+        for ($j = $i + 1; $j -lt [Math]::Min($lines.Count, $i + 5); $j++) {
+            $peer = $lines[$j]
+            # Stop scanning the auth block when indentation returns to its level.
+            if ($peer -match '^\S') { break }
+            if ($peer -match '^\s*value\s*:\s*\S') {
+                $errors.Add("inline literal value detected under '$authKey:' at line $($j + 1); auth blocks must reference env vars via 'name:' rather than inlining secrets.")
+                break
+            }
+        }
     }
 }
 

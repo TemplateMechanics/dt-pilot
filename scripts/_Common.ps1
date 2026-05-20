@@ -73,13 +73,19 @@ function Invoke-MonacoCommand {
 
     $proc = [System.Diagnostics.Process]::Start($psi)
     if ($CaptureOutput) {
-        $stdout = $proc.StandardOutput.ReadToEnd()
-        $stderr = $proc.StandardError.ReadToEnd()
+        # Read both streams asynchronously to avoid the classic deadlock
+        # where Monaco fills the unread stderr buffer while we block on
+        # StandardOutput.ReadToEnd().
+        $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+        $stderrTask = $proc.StandardError.ReadToEndAsync()
+        $proc.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
     } else {
+        $proc.WaitForExit()
         $stdout = $null
         $stderr = $null
     }
-    $proc.WaitForExit()
 
     [pscustomobject]@{
         ExitCode = $proc.ExitCode
@@ -102,12 +108,16 @@ function Write-DryRunMetadata {
     $manifestHash = (Get-FileHash -LiteralPath $ManifestPath -Algorithm SHA256).Hash
     $createdAt    = (Get-Date).ToUniversalTime().ToString('o')
 
-    # Best-effort summary: count Monaco's "would create / update / delete" lines.
-    # Monaco's log format is subject to change across versions — we expose the raw
-    # output too so reviewers and Invoke-MonacoDeploy can do their own parsing.
-    $created = ($RawOutput | Select-String -SimpleMatch 'would create' -AllMatches).Matches.Count
-    $updated = ($RawOutput | Select-String -SimpleMatch 'would update' -AllMatches).Matches.Count
-    $deleted = ($RawOutput | Select-String -SimpleMatch 'would delete' -AllMatches).Matches.Count
+    # Best-effort summary: count Monaco's "would create / update / delete"
+    # lines. Monaco's log format is subject to change across versions — we
+    # expose the raw output too so reviewers and Invoke-MonacoDeploy can do
+    # their own parsing.
+    # Use [regex]::Matches directly: under StrictMode, dereferencing .Matches
+    # on a null Select-String result throws, and array coercion with @(...)
+    # adds ceremony without clarity.
+    $created = ([regex]::Matches($RawOutput, 'would create', 'IgnoreCase')).Count
+    $updated = ([regex]::Matches($RawOutput, 'would update', 'IgnoreCase')).Count
+    $deleted = ([regex]::Matches($RawOutput, 'would delete', 'IgnoreCase')).Count
 
     $meta = [ordered]@{
         schema       = 'dt-pilot.dryrun/v1'
