@@ -8,5 +8,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial repository bootstrap (LICENSE, README, contribution guidance, branch workflow).
-- Subsequent PRs land agent instructions, the Monaco skill doc, wrapper scripts, MCP integration, CI gates, a working example, and the reflected config catalog.
+- Repository meta surface: `README`, `LICENSE` (MIT), tuned `.gitignore`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, GitHub PR template, and `docs/BRANCH-WORKFLOW.md` codifying the never-commit-to-main + squash-only merge policy.

@@ -65,7 +65,7 @@ builds.
 
 ## PR workflow
 
-1. Branch from `main`: `git checkout -b feat/<scope>`.
+1. Branch from `main` using the appropriate prefix from the [Branch naming](#branch-naming) table (e.g. `feat/<scope>`, `fix/<scope>`, `chore/<scope>`, `docs/<scope>`): `git checkout -b <type>/<scope>`.
 2. Make focused changes.
 3. Run `./scripts/Pre-Commit.ps1` (once it has landed in PR&nbsp;6) and fix anything it surfaces.
 4. Push the branch and open a PR with the project's PR template.

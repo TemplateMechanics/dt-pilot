@@ -48,16 +48,16 @@ User request
 
 ## What's innovative here
 
-1. **Dry-run-as-artifact discipline**
+1. **Dry-run-as-artifact discipline** *(planned, PR&nbsp;4)*
    `Invoke-MonacoDryRun.ps1` emits a saved dry-run summary; `Invoke-MonacoDeploy.ps1` requires `-DryRunFile`. Change review is explicit and repeatable.
-2. **Deletefile review gate**
+2. **Deletefile review gate** *(planned, PR&nbsp;4)*
    Monaco's `delete` requires a generated deletefile. `Invoke-MonacoDelete.ps1` requires `-Confirm` and refuses to proceed without an explicit deletefile path.
-3. **MCP-first reads, scripts-only writes**
+3. **MCP-first reads, scripts-only writes** *(planned, PR&nbsp;5)*
    Agent workflows use the Dynatrace MCP server for DQL and entity context and wrappers for mutations to avoid direct, unsafe CLI behavior.
-4. **Reflected config catalog**
+4. **Reflected config catalog** *(planned, PR&nbsp;8)*
    `config/catalog/` enumerates supported Monaco config types; `Sync-ConfigCatalog.ps1` regenerates scaffolds under `modules/configs/`, and CI enforces sync state.
-5. **Branch + PR discipline enforced in instructions**
-   The harness instructions forbid direct commits to `main` for both humans and agents. Every change goes via a semantic branch and squash-merged PR.
+5. **Branch + PR discipline enforced in instructions** *(in place from PR&nbsp;1)*
+   The harness forbids direct commits to `main` for both humans and agents — see [`docs/BRANCH-WORKFLOW.md`](docs/BRANCH-WORKFLOW.md). Agent-facing instruction files that reinforce this rule land in PR&nbsp;2. Every change goes via a semantic branch and squash-merged PR.
 
 ## Quick start
 
