@@ -75,8 +75,16 @@ builds.
 ## Code style
 
 - **PowerShell:** scripts target PowerShell 7+. Use approved verbs (`Get-`,
-  `Invoke-`, `Test-`, `Set-`, `New-`, `Sync-`). Pass `-Path` explicitly; never
-  rely on the caller's `$PWD`. Use `[CmdletBinding()]` and `param(...)` blocks.
+  `Invoke-`, `Test-`, `Set-`, `New-`, `Sync-`). Use `[CmdletBinding()]` and
+  `param(...)` blocks. The named wrappers below are **planned**; they land
+  across PRs 4–8. Once they exist, follow the `-Path` convention they
+  encode: wrappers that operate on a specific Monaco manifest or project
+  (the `Invoke-Monaco*` family, `Validate-Monaco.ps1`,
+  `Initialize-MonacoWorkspace.ps1`, `Test-MonacoManifest.ps1`) take an
+  explicit `-Path` parameter — always pass it, do not rely on the caller's
+  `$PWD`. Repo-wide gates (`Pre-Commit.ps1`, `Get-MonacoVersion.ps1`,
+  `Sync-ConfigCatalog.ps1` default mode, `Test-McpConfigSecrets.ps1`)
+  intentionally operate on the repository root and do not take `-Path`.
 - **YAML:** 2-space indentation, no tabs, LF line endings, UTF-8 without BOM.
 - **Markdown:** wrap prose at ~100 chars when practical; tables are fine.
 
