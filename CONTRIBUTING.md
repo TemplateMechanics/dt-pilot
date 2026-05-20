@@ -47,23 +47,29 @@ Write the body of each commit in Conventional Commits form:
 
 ## Local quality gate
 
-Before pushing, run:
+> **Planned (PR&nbsp;6):** `scripts/Pre-Commit.ps1` and the Pester suite under
+> `tests/` are introduced together in a later PR. Until that PR has merged,
+> there is no local quality gate beyond standard `git` checks, so until then
+> the steps below are aspirational rather than enforceable.
+
+Once the gate has landed, before pushing run:
 
 ```powershell
 ./scripts/Pre-Commit.ps1
 ```
 
-This script runs manifest schema validation, Monaco dry-run against any committed
-example projects, MCP secret-hygiene checks, and the Pester test suite. CI runs
-the same gate; running it locally avoids round-trip red builds.
+This script will run manifest schema validation, Monaco dry-run against any
+committed example projects, MCP secret-hygiene checks, and the Pester test
+suite. CI will run the same gate; running it locally avoids round-trip red
+builds.
 
 ## PR workflow
 
 1. Branch from `main`: `git checkout -b feat/<scope>`.
 2. Make focused changes.
-3. Run `./scripts/Pre-Commit.ps1` and fix anything it surfaces.
+3. Run `./scripts/Pre-Commit.ps1` (once it has landed in PR&nbsp;6) and fix anything it surfaces.
 4. Push the branch and open a PR with the project's PR template.
-5. Wait for CI green; address review comments.
+5. Wait for CI green (once CI has landed in PR&nbsp;6); address review comments.
 6. Squash-merge the PR; delete the branch.
 
 ## Code style

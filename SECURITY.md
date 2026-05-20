@@ -22,10 +22,12 @@ remediation plan or fix within 30 days for confirmed issues.
 
 ## What's in scope
 
-- The PowerShell wrapper scripts under `scripts/`
-- The committed MCP configuration under `.vscode/mcp.json` and the catalog
-- CI workflows under `.github/workflows/`
-- The example projects under `examples/`
+> dt-pilot is being built up across a series of small PRs (see [`docs/BRANCH-WORKFLOW.md`](docs/BRANCH-WORKFLOW.md) and the Layout table in `README.md`). The list below describes the surfaces that will be in scope once those PRs have landed; items not yet present in `main` are flagged as **planned**.
+
+- The PowerShell wrapper scripts under `scripts/` (**planned, PR&nbsp;4 and PR&nbsp;5**)
+- The committed MCP configuration under `.vscode/mcp.json` and the server catalog (**planned, PR&nbsp;5**)
+- CI workflows under `.github/workflows/` (**planned, PR&nbsp;6**)
+- The example projects under `examples/` (**planned, PR&nbsp;7**)
 
 ## What's out of scope
 
@@ -41,5 +43,6 @@ read from environment variables (`DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`,
 `OAUTH_CLIENT_SECRET`) and passed straight through to Monaco / the MCP server.
 If you see a wrapper that violates this, treat it as a security bug.
 
-The pre-commit gate scans MCP configuration files for hardcoded secrets. If
-you find a way around that check, please report it.
+**Planned (PR&nbsp;6):** the pre-commit gate will scan MCP configuration files
+for hardcoded secrets before allowing a push. Once that gate is in place, if
+you find a way around the check, please report it.

@@ -80,12 +80,12 @@ CLI shorthand:
 ```powershell
 git checkout -b feat/my-change
 # ... edits ...
-./scripts/Pre-Commit.ps1
+./scripts/Pre-Commit.ps1    # planned, lands in PR 6 — skip until then
 git add -A
 git commit -m "feat(scope): short summary"
 git push -u origin feat/my-change
 gh pr create --fill
-# ... after CI green ...
+# ... after CI green (CI lands in PR 6) ...
 gh pr merge --squash --delete-branch
 ```
 
@@ -95,8 +95,10 @@ Any AI agent working in this repo must:
 
 - Read this file before its first push.
 - Never invoke `git push origin main` or `git commit` on `main`.
-- Run `./scripts/Pre-Commit.ps1` before pushing.
-- Open a PR via `gh pr create` and wait for CI green before merging.
+- Run `./scripts/Pre-Commit.ps1` before pushing, **once the script has landed
+  in PR&nbsp;6**. Until then, skip this step (it has nothing to invoke yet).
+- Open a PR via `gh pr create` and wait for CI green before merging (CI lands
+  in PR&nbsp;6; until then, treat the human/agent review as the only gate).
 - Use `gh pr merge --squash --delete-branch` (never `--merge`, never `--rebase`).
 - If the user requests a destructive operation (deletefile, force-push to a
   shared branch, anything affecting the live Dynatrace environment), surface

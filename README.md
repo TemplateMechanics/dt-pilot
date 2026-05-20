@@ -4,17 +4,19 @@
 
 Modeled on [TemplateMechanics/tf-pilot](https://github.com/TemplateMechanics/tf-pilot).
 
+> **Status:** This README describes the **target** shape of dt-pilot. The repository is being built up across a series of small, reviewable PRs. Paths and scripts referenced below that are not yet present in the working tree are explicitly marked **(planned — lands in PR&nbsp;N)** and will be introduced in subsequent PRs.
+
 ## What problem does this solve?
 
 LLMs are confidently wrong about Dynatrace. They invent settings schema keys, skip dry-run before deploy, deploy across the wrong environment group, mishandle deletefiles, and produce manifests that fail Monaco's strict schema. dt-pilot is a *harness* in the Mitchell-Hashimoto sense: it engineers the environment so the agent cannot easily make those mistakes.
 
 It does this with three things:
 
-1. **Instructions** that tell the AI exactly how to behave on this codebase (`CLAUDE.md`, `.github/copilot-instructions.md`, `agents/dynatrace.agent.md`).
-2. **A single authoritative skill reference** the AI reads before editing (`skills/dynatrace/SKILL.md`).
-3. **Wrapped automation** the AI is required to use instead of typing `monaco` commands directly (`scripts/*.ps1`).
+1. **Instructions** that tell the AI exactly how to behave on this codebase (`CLAUDE.md`, `.github/copilot-instructions.md`, `agents/dynatrace.agent.md` — **planned, land in PR&nbsp;2**).
+2. **A single authoritative skill reference** the AI reads before editing (`skills/dynatrace/SKILL.md` — **planned, lands in PR&nbsp;3**).
+3. **Wrapped automation** the AI is required to use instead of typing `monaco` commands directly (`scripts/*.ps1` — **planned, land in PR&nbsp;4**).
 
-It also includes an **official Dynatrace MCP server integration** so agents can query DQL, problems, vulnerabilities, and entity context with first-party tooling before mutating configuration.
+It also includes an **official Dynatrace MCP server integration** so agents can query DQL, problems, vulnerabilities, and entity context with first-party tooling before mutating configuration (**planned, lands in PR&nbsp;5**).
 
 ## Architecture
 
@@ -59,13 +61,15 @@ User request
 
 ## Quick start
 
+> The steps below describe the **target** onboarding flow. Items marked **(planned)** are not present in `main` at the time of this PR — they land in the subsequent PRs noted in the [Layout](#layout) table.
+
 1. Fork or clone this repository into your Dynatrace configuration-as-code project root.
 2. Open the project in VS Code with the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) installed.
 3. Install the supporting CLIs (PowerShell 7+, [Monaco CLI](https://github.com/Dynatrace/dynatrace-configuration-as-code), Node.js 20+ for the Dynatrace MCP server).
-4. Provision Dynatrace credentials — see [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md). The harness expects either a platform token (`DT_PLATFORM_TOKEN`) or OAuth credentials (`OAUTH_CLIENT_ID` + `OAUTH_CLIENT_SECRET`) in environment variables — never in checked-in files.
-5. Talk to your AI assistant in natural language. It will read `CLAUDE.md` (or `.github/copilot-instructions.md`) and follow the operational sequence.
-6. Configure MCP via `.vscode/mcp.json` (included).
-7. Before pushing changes, run `./scripts/Pre-Commit.ps1` for the local quality gate.
+4. Provision Dynatrace credentials — see `docs/AUTHENTICATION.md` **(planned, lands in PR&nbsp;8)**. The harness expects either a platform token (`DT_PLATFORM_TOKEN`) or OAuth credentials (`OAUTH_CLIENT_ID` + `OAUTH_CLIENT_SECRET`) in environment variables — never in checked-in files.
+5. Talk to your AI assistant in natural language. It will read `CLAUDE.md` (or `.github/copilot-instructions.md`) **(planned, land in PR&nbsp;2)** and follow the operational sequence.
+6. Configure MCP via `.vscode/mcp.json` **(planned, lands in PR&nbsp;5)**.
+7. Before pushing changes, run `./scripts/Pre-Commit.ps1` **(planned, lands in PR&nbsp;6)** for the local quality gate.
 
 ## The mandatory dry-run / deploy discipline
 
@@ -97,6 +101,8 @@ User request
 
 ## How a request flows through this harness
 
+> The flow below describes the **target** behavior once all PRs in the bootstrap series have landed. Steps 4–10 depend on tooling introduced in PRs 2–6.
+
 1. User asks for a change in chat.
 2. Agent loads instruction files and safety rules.
 3. Agent consults `skills/dynatrace/SKILL.md` before editing.
@@ -111,22 +117,31 @@ User request
 
 ## Layout
 
-| Path | Purpose |
-|---|---|
-| `CLAUDE.md` | Instructions loaded by Claude Code |
-| `.github/copilot-instructions.md` | Instructions loaded by GitHub Copilot |
-| `agents/dynatrace.agent.md` | Conversational agent persona |
-| `skills/dynatrace/SKILL.md` | Authoritative Monaco + DQL reference |
-| `docs/` | Deep-dive references (auth, DQL primer, MCP integration, dry-run strategy, branch workflow) |
-| `.vscode/mcp.json` | Workspace MCP integration (Dynatrace MCP + optional doc servers) |
-| `.vscode/schemas/monaco-manifest.schema.json` | JSON Schema contract for `manifest.yaml` |
-| `scripts/` | PowerShell wrappers for init/validate/dry-run/deploy/delete/download |
-| `config/catalog/` | Reflected catalog of supported Monaco config types |
-| `modules/configs/` | Generated config scaffolds (committed, sync-checked by CI) |
-| `examples/baseline-stack/` | Working Monaco project (management zone + alerting profile + SLO + dashboard) |
-| `policy/` | Policy rules evaluated against dry-run summaries |
-| `tests/Harness.Tests.ps1` | Pester suite for the wrappers |
-| `.github/workflows/validate.yml` | CI: validate + manifest schema + reflected catalog sync + tests |
+The table below lists the **target** layout. The third column tracks the PR in the bootstrap series that introduces each path.
+
+| Path | Purpose | Status |
+|---|---|---|
+| `README.md` | This file | **present (PR&nbsp;1)** |
+| `LICENSE` | MIT license | **present (PR&nbsp;1)** |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | Contribution + security policy | **present (PR&nbsp;1)** |
+| `.github/pull_request_template.md` | PR template | **present (PR&nbsp;1)** |
+| `docs/BRANCH-WORKFLOW.md` | Never-commit-to-main + squash-only policy | **present (PR&nbsp;1)** |
+| `CLAUDE.md` | Instructions loaded by Claude Code | planned (PR&nbsp;2) |
+| `.github/copilot-instructions.md` | Instructions loaded by GitHub Copilot | planned (PR&nbsp;2) |
+| `agents/dynatrace.agent.md` | Conversational agent persona | planned (PR&nbsp;2) |
+| `skills/dynatrace/SKILL.md` | Authoritative Monaco + DQL reference | planned (PR&nbsp;3) |
+| `docs/DQL-PRIMER.md` | DQL primer | planned (PR&nbsp;3) |
+| `scripts/` | PowerShell wrappers for init/validate/dry-run/deploy/delete/download | planned (PR&nbsp;4) |
+| `.vscode/mcp.json` | Workspace MCP integration (Dynatrace MCP + optional doc servers) | planned (PR&nbsp;5) |
+| `.vscode/schemas/monaco-manifest.schema.json` | JSON Schema contract for `manifest.yaml` | planned (PR&nbsp;5) |
+| `.github/workflows/validate.yml` | CI: validate + manifest schema + reflected catalog sync + tests | planned (PR&nbsp;6) |
+| `scripts/Pre-Commit.ps1` | Local quality gate | planned (PR&nbsp;6) |
+| `tests/Harness.Tests.ps1` | Pester suite for the wrappers | planned (PR&nbsp;6) |
+| `examples/baseline-stack/` | Working Monaco project (management zone + alerting profile + SLO + dashboard) | planned (PR&nbsp;7) |
+| `config/catalog/` | Reflected catalog of supported Monaco config types | planned (PR&nbsp;8) |
+| `modules/configs/` | Generated config scaffolds (committed, sync-checked by CI) | planned (PR&nbsp;8) |
+| `policy/` | Policy rules evaluated against dry-run summaries | planned (PR&nbsp;8) |
+| `docs/AUTHENTICATION.md`, `docs/RUNBOOK.md` | Auth setup + operational runbook | planned (PR&nbsp;8) |
 
 ## Generated Artifacts Governance
 
