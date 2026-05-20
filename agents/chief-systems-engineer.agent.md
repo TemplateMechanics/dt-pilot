@@ -76,9 +76,9 @@ Default rule: dev/staging in `non-prod`; production isolated in its own group. D
 ### Bringing an existing UI-managed environment under Monaco
 
 1. **Inventory.** Use MCP `find_entity_by_name` and `execute_dql` to enumerate what exists. Don't trust UI lists alone.
-2. **Download.** `Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/`.
+2. **Download.** `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/`.
 3. **Restructure.** The downloaded layout is per-API; restructure into projects that match team ownership and deploy cadence.
-4. **Validate.** `Validate-Monaco.ps1 -Path .` — expect to fix `template.json` parameter references; download isn't lossless on edge cases.
+4. **Validate.** `./scripts/Validate-Monaco.ps1 -Path .` — expect to fix `template.json` parameter references; download isn't lossless on edge cases.
 5. **Dry-run on the source environment.** Expect zero changes (you just downloaded it). Non-zero indicates the download missed something — fix the restructure.
 6. **Promote.** Dry-run against `staging`, then `prod`. Each promotion gets a separate PR + Copilot review + human review.
 

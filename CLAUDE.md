@@ -14,9 +14,9 @@ Read `skills/dynatrace/SKILL.md` *(planned, lands in PR&nbsp;3)* — it contains
 
 Use the official **Dynatrace MCP server** first when available (`@dynatrace-oss/dynatrace-mcp-server`). Prefer MCP for DQL queries, entity discovery, problem and vulnerability listing, and Davis Copilot consultations. Use project scripts for guarded mutation workflows (validate, dry-run, deploy, delete, download).
 
-If MCP is unavailable, continue with repository docs plus `Get-MonacoVersion.ps1` for the Monaco version baseline, then proceed with the same script-guarded workflow.
+If MCP is unavailable, continue with repository docs plus `Get-MonacoVersion.ps1` *(planned, PR&nbsp;4 — until then, call `monaco --version` directly)* for the Monaco version baseline, then proceed with the same script-guarded workflow.
 
-When touching reflected catalog modules under `modules/configs/` or `config/catalog/`, read `docs/CONFIG-COVERAGE.md` — it is the canonical doctrine for the reflected scaffold shape, sync semantics, and the per-PR coverage verification template.
+When touching reflected catalog modules under `modules/configs/` or `config/catalog/`, read `docs/CONFIG-COVERAGE.md` *(planned, lands in PR&nbsp;8 with the reflected catalog itself)* — it is the canonical doctrine for the reflected scaffold shape, sync semantics, and the per-PR coverage verification template.
 
 ## Key Rules
 
