@@ -37,7 +37,7 @@ Examples:
 
 ## Commit messages
 
-Write the body of each commit in Conventional Commits form:
+Write each commit's subject (header) in [Conventional Commits](https://www.conventionalcommits.org/) form. The body is free-form prose explaining the *why*, not a continuation of the `<type>(<scope>):` pattern:
 
 ```
 <type>(<optional scope>): <short imperative summary>

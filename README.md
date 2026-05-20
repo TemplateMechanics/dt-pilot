@@ -12,9 +12,9 @@ LLMs are confidently wrong about Dynatrace. They invent settings schema keys, sk
 
 It does this with three things:
 
-1. **Instructions** that tell the AI exactly how to behave on this codebase (`CLAUDE.md`, `.github/copilot-instructions.md`, `agents/dynatrace.agent.md` — **planned, land in PR&nbsp;2**).
+1. **Instructions** that tell the AI exactly how to behave on this codebase (`CLAUDE.md`, `.github/copilot-instructions.md`, `agents/dynatrace.agent.md` — **planned, lands in PR&nbsp;2**).
 2. **A single authoritative skill reference** the AI reads before editing (`skills/dynatrace/SKILL.md` — **planned, lands in PR&nbsp;3**).
-3. **Wrapped automation** the AI is required to use instead of typing `monaco` commands directly (`scripts/*.ps1` — **planned, land in PR&nbsp;4**).
+3. **Wrapped automation** the AI is required to use instead of typing `monaco` commands directly (`scripts/*.ps1` — **planned, lands in PR&nbsp;4**).
 
 It also includes an **official Dynatrace MCP server integration** so agents can query DQL, problems, vulnerabilities, and entity context with first-party tooling before mutating configuration (**planned, lands in PR&nbsp;5**).
 
@@ -67,7 +67,7 @@ User request
 2. Open the project in VS Code with the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) installed.
 3. Install the supporting CLIs (PowerShell 7+, [Monaco CLI](https://github.com/Dynatrace/dynatrace-configuration-as-code), Node.js 20+ for the Dynatrace MCP server).
 4. Provision Dynatrace credentials — see `docs/AUTHENTICATION.md` **(planned, lands in PR&nbsp;8)**. The harness expects either a platform token (`DT_PLATFORM_TOKEN`) or OAuth credentials (`OAUTH_CLIENT_ID` + `OAUTH_CLIENT_SECRET`) in environment variables — never in checked-in files.
-5. Talk to your AI assistant in natural language. It will read `CLAUDE.md` (or `.github/copilot-instructions.md`) **(planned, land in PR&nbsp;2)** and follow the operational sequence.
+5. Talk to your AI assistant in natural language. It will read `CLAUDE.md` (or `.github/copilot-instructions.md`) **(planned, lands in PR&nbsp;2)** and follow the operational sequence.
 6. Configure MCP via `.vscode/mcp.json` **(planned, lands in PR&nbsp;5)**.
 7. Before pushing changes, run `./scripts/Pre-Commit.ps1` **(planned, lands in PR&nbsp;6)** for the local quality gate.
 
