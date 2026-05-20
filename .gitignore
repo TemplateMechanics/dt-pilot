@@ -1,0 +1,53 @@
+# Monaco dry-run / deploy artifacts (may contain config-as-code snapshots)
+dryrun/
+*.dryrun.json
+*.deploy.json
+deletefile.yaml
+deletefile.*.yaml
+monaco.log
+.monaco/
+
+# Downloaded configs (snapshots of live env state)
+downloaded/
+download/
+*.download.json
+
+# Secrets and env
+.env
+.env.*
+*.secrets.yaml
+*.local.yaml
+auth.yaml
+credentials.json
+
+# Session-local MCP configuration (gitignored; committed mcp.json is the template)
+.vscode/mcp.session.json
+.vscode/mcp.session.*.json
+
+# Pester test results
+test-results.xml
+TestResults.xml
+coverage.xml
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+.idea/
+.vs/
+*.swp
+*.swo
+
+# Local tool cache
+.tools/
+
+# Node (only used by MCP server child processes)
+node_modules/
+
+# Generated catalog scratch (committed final outputs live under config/catalog/ and modules/configs/)
+.catalog-cache/
+schema-dump.json
+
+# Claude Code per-developer session artifacts
+.claude/settings.local.json
+.claude/.last-session
+
