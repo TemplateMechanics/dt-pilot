@@ -42,8 +42,12 @@ if ($content -notmatch '(?m)^\s*manifestVersion\s*:') {
     throw "manifest.yaml is missing a 'manifestVersion' field: $manifest"
 }
 
-# Walk projects via the shared helper, which honors `projects[].path`
-# overrides and the bare-name + 'projects/<name>/' fallbacks.
+# Walk the projects: section. We don't reuse Get-ManifestProjectDirs here
+# because that helper only returns directories that already resolve on disk
+# — this script needs the project name → resolved-path mapping so it can
+# emit a precise error for each missing project. The walker honors
+# `projects[].path` overrides and the bare-name + 'projects/<name>/'
+# fallbacks identically to the helper.
 $projectInfos = @()
 $inProjects = $false
 $currentName = $null

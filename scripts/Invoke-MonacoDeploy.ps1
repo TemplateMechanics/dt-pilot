@@ -6,13 +6,21 @@
     Refuses to run without a -DryRunFile produced by Invoke-MonacoDryRun.ps1.
     Verifies that the dry-run:
         - has the dt-pilot dryrun/v1 schema
-        - was produced for the same manifest (SHA-256 match)
         - was produced for the same environment
+        - was produced for the same manifest (SHA-256 match)
+        - was produced for the same workspace contents
+          (workspaceHash match — covers every config.yaml / template.json
+           reachable from the manifest, not just manifest.yaml itself)
         - succeeded (exit code 0)
         - is no older than -MaxAgeMinutes (default 30) so a stale review
           can't be used to mask drift introduced after the dry-run
 
-    Only after every check passes does it invoke 'monaco deploy'.
+    These are consistency *checks*, not cryptographic integrity *proof* —
+    the artifact is unsigned JSON. The checks defend against honest
+    drift (post-dry-run edits, environment swaps, stale reviews); they
+    do not defend against an adversarial author who edits the JSON to
+    satisfy them. Only after every check passes does it invoke
+    'monaco deploy'.
 
 .PARAMETER Path
     Directory containing manifest.yaml (or the explicit manifest file path).

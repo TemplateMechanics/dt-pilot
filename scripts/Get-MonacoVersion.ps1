@@ -8,8 +8,10 @@
     first sanity check when the harness reports trouble finding Monaco.
 
 .PARAMETER MonacoExe
-    Explicit path to the Monaco executable. Defaults to the first 'monaco'
-    on PATH; falls back to the MONACO_EXE environment variable.
+    Explicit path to the Monaco executable. Resolution precedence is:
+    explicit -MonacoExe > MONACO_EXE environment variable > first 'monaco'
+    application on PATH. CI typically pins via MONACO_EXE; local dev uses
+    PATH.
 
 .EXAMPLE
     ./scripts/Get-MonacoVersion.ps1

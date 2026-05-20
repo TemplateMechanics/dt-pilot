@@ -179,12 +179,15 @@ function Get-WorkspaceHash {
     }
 
     $sb = New-Object System.Text.StringBuilder
+    $manifestRoot = Split-Path -Parent (Resolve-Path -LiteralPath $ManifestPath).ProviderPath
     foreach ($f in ($files | Sort-Object)) {
         $h = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash
-        # Use the manifest-relative path so the hash is stable across
-        # clones at different absolute locations.
-        $manifestRoot = Split-Path -Parent (Resolve-Path -LiteralPath $ManifestPath).ProviderPath
-        $rel = $f.Substring($manifestRoot.Length).TrimStart('\','/')
+        # Use a real relative-path computation so the hash is stable across
+        # clones at different absolute locations AND correct when a project
+        # path resolves outside the manifest directory (e.g. projects[].path
+        # uses '..'). Path.GetRelativePath handles cross-volume and
+        # casing-aware comparison better than naive Substring.
+        $rel = [System.IO.Path]::GetRelativePath($manifestRoot, $f).Replace('\','/')
         [void]$sb.Append($rel).Append('|').Append($h).Append("`n")
     }
 
@@ -243,7 +246,7 @@ function Write-DryRunMetadata {
 
     $dir = Split-Path -Parent $OutPath
     if ($dir -and -not (Test-Path -LiteralPath $dir)) {
-        $null = New-Item -ItemType Directory -Path $dir -Force
+        $null = New-Item -ItemType Directory -Path ([System.IO.Path]::GetFullPath($dir)) -Force
     }
 
     $meta | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutPath -Encoding utf8

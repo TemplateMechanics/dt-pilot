@@ -100,12 +100,16 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
     # clientSecret:. Monaco's contract is that these blocks resolve from
     # env vars via the `name:` field; a peer `value:` here means the
     # secret was inlined.
-    if ($line -match '^\s*(token|platformToken|clientId|clientSecret)\s*:\s*$') {
-        $authKey = $Matches[1]
-        for ($j = $i + 1; $j -lt [Math]::Min($lines.Count, $i + 5); $j++) {
+    if ($line -match '^(\s*)(token|platformToken|clientId|clientSecret)\s*:\s*$') {
+        $baseIndent = $Matches[1].Length
+        $authKey    = $Matches[2]
+        for ($j = $i + 1; $j -lt $lines.Count; $j++) {
             $peer = $lines[$j]
-            # Stop scanning the auth block when indentation returns to its level.
-            if ($peer -match '^\S') { break }
+            if ($peer -notmatch '^(\s*)\S') { continue }  # skip blank
+            $peerIndent = $Matches[1].Length
+            # Stop when indentation returns to (or above) the auth key's
+            # level — anything from here on belongs to a sibling block.
+            if ($peerIndent -le $baseIndent) { break }
             if ($peer -match '^\s*value\s*:\s*\S') {
                 $errors.Add("inline literal value detected under '$authKey:' at line $($j + 1); auth blocks must reference env vars via 'name:' rather than inlining secrets.")
                 break

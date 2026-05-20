@@ -14,7 +14,13 @@
         - raw Monaco stdout/stderr
 
     Invoke-MonacoDeploy.ps1 requires this exact artifact via its -DryRunFile
-    parameter. Hand-edited or stale artifacts are rejected.
+    parameter and applies four consistency checks (schema, environment,
+    workspace hash, age) before invoking 'monaco deploy'. The artifact is
+    NOT cryptographically signed — these are integrity *checks*, not
+    tamper-evident integrity *proof*. A determined operator could edit the
+    JSON to satisfy all four checks; the controls exist to catch honest
+    drift (post-dry-run edits, environment swaps, stale reviews) rather
+    than to defend against an adversarial author.
 
 .PARAMETER Path
     Directory containing manifest.yaml (or the explicit manifest file path).
