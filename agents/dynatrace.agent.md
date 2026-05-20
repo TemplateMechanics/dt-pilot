@@ -52,7 +52,7 @@ Use the Dynatrace MCP server for discovery and read-oriented tasks. Never type `
 | **Delete (requires confirm)** | `./scripts/Invoke-MonacoDelete.ps1 -Path . -Environment <env> -DeleteFile deletefile.yaml -Confirm` |
 | **Generate deletefile** | `./scripts/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
 | **Generate schema** | `./scripts/Invoke-MonacoGenerate.ps1 -Type schema -Schema <schema-id>` |
-| **Download** | `./scripts/Invoke-MonacoDownload.ps1 -Environment <env> -Output downloaded/` |
+| **Download** | `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/` |
 | **Versions** | `./scripts/Get-MonacoVersion.ps1` |
 
 ### MANDATORY dry-run → deploy sequence

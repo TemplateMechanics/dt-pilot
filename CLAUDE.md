@@ -10,7 +10,7 @@ This workspace contains Dynatrace configuration-as-code managed by the **Monaco*
 
 ## Before Making Any Edits
 
-Read `skills/dynatrace/SKILL.md` — it contains the canonical reference for Monaco's project layout, manifest semantics, parameter and dependency syntax, the deploy / dry-run / download / delete lifecycle, account management, and common DQL recipes. This is the single source of truth for this project.
+Read `skills/dynatrace/SKILL.md` *(planned, lands in PR&nbsp;3)* — it contains the canonical reference for Monaco's project layout, manifest semantics, parameter and dependency syntax, the deploy / dry-run / download / delete lifecycle, account management, and common DQL recipes. This is the single source of truth for this project. Until PR&nbsp;3 lands, fall back to the [official Monaco docs](https://docs.dynatrace.com/docs/deliver/configuration-as-code/monaco) and the inline guidance in this file.
 
 Use the official **Dynatrace MCP server** first when available (`@dynatrace-oss/dynatrace-mcp-server`). Prefer MCP for DQL queries, entity discovery, problem and vulnerability listing, and Davis Copilot consultations. Use project scripts for guarded mutation workflows (validate, dry-run, deploy, delete, download).
 
@@ -21,12 +21,12 @@ When touching reflected catalog modules under `modules/configs/` or `config/cata
 ## Key Rules
 
 1. **YAML uses 2-space indentation** — never tabs in `.yaml` files. JSON templates use 2-space indentation.
-2. **Always pin the Monaco version** by recording the supported range in `manifest.yaml`'s `manifestVersion` field and by pinning the `monaco` executable in CI.
+2. **`manifestVersion` and Monaco CLI version are distinct concerns.** `manifest.yaml`'s `manifestVersion` field declares the *manifest schema* version (e.g. `"1.0"`) and must match what your installed Monaco supports — it does **not** pin the CLI itself. Pin the `monaco` executable separately, in CI (e.g. by SHA or release tag in the validate workflow) and in local-dev install docs.
 3. **Every project listed in `manifest.yaml` must exist** under `projects/<name>/` and contain at least one valid config.
 4. **Save `.yaml`/`.json` files as UTF-8 without BOM**, LF line endings.
 5. **NEVER edit the Dynatrace environment directly via the UI for configurations that Monaco owns.** Out-of-band UI changes drift away from the manifest and will be silently overwritten on the next `monaco deploy`. If a UI change is genuinely needed, `monaco download` the change back into source first.
 6. **NEVER run `monaco deploy` without first running `Invoke-MonacoDryRun.ps1` and getting explicit user approval of the planned changes.** This is dt-pilot's equivalent of tf-pilot's plan-before-apply rule. The two-step sequence is non-negotiable. Do not pass `--auto-deploy` or any non-interactive deploy flag unless the user has explicitly authorized it for this exact run.
-7. **NEVER run `monaco delete` (or `Invoke-MonacoDelete.ps1`) without an explicit delete authorization in the conversation AND an explicit `--Confirm` flag.** Delete is irreversible at the Dynatrace platform layer for many config types.
+7. **NEVER run `monaco delete` (or `Invoke-MonacoDelete.ps1`) without an explicit delete authorization in the conversation AND an explicit `-Confirm` flag.** Delete is irreversible at the Dynatrace platform layer for many config types.
 8. **`monaco delete` requires a deletefile.** Generate it via `Invoke-MonacoGenerate.ps1 -Type deletefile`. Review the deletefile before invoking delete. Never reuse an old deletefile if the manifest or projects have changed.
 9. **After editing any `.yaml` or `.json` template**, always run `Validate-Monaco.ps1` (which wraps `monaco deploy --dry-run`) before producing a real dry-run for review. This catches structural errors fast.
 10. **Refactors that rename a config ID:** Monaco treats the ID as identity. Renaming the config ID will create a new config and orphan the old one. Either (a) `monaco download` the existing config under the new ID, then `monaco delete` the old one in a separate, reviewed PR, or (b) keep the old ID and rename only the file name (which Monaco ignores for identity).
@@ -64,7 +64,7 @@ Use these scripts as the execution path after MCP-guided analysis.
 | **Deploy** a reviewed dry-run | `Invoke-MonacoDeploy.ps1` | `./scripts/Invoke-MonacoDeploy.ps1 -Path . -Environment dev -DryRunFile dryrun/dev.json` |
 | **Delete** (requires deletefile + `-Confirm`) | `Invoke-MonacoDelete.ps1` | `./scripts/Invoke-MonacoDelete.ps1 -Path . -Environment dev -DeleteFile deletefile.yaml -Confirm` |
 | **Generate** a deletefile or schema | `Invoke-MonacoGenerate.ps1` | `./scripts/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
-| **Download** live config | `Invoke-MonacoDownload.ps1` | `./scripts/Invoke-MonacoDownload.ps1 -Environment dev -Output downloaded/` |
+| **Download** live config | `Invoke-MonacoDownload.ps1` | `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment dev -Output downloaded/` |
 | **Print Monaco + provider versions** | `Get-MonacoVersion.ps1` | `./scripts/Get-MonacoVersion.ps1` |
 | **Pre-push gate** (manifest schema + dry-run + MCP secret hygiene + tests) | `Pre-Commit.ps1` | `./scripts/Pre-Commit.ps1` |
 | **Refresh reflected config catalog** | `Sync-ConfigCatalog.ps1` | `./scripts/Sync-ConfigCatalog.ps1 -Check` |
