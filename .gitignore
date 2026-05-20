@@ -46,3 +46,8 @@ node_modules/
 # Generated catalog scratch (committed final outputs live under config/catalog/ and modules/configs/)
 .catalog-cache/
 schema-dump.json
+
+# Claude Code per-developer session artifacts
+.claude/settings.local.json
+.claude/.last-session
+
