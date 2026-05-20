@@ -42,36 +42,48 @@ if ($content -notmatch '(?m)^\s*manifestVersion\s*:') {
     throw "manifest.yaml is missing a 'manifestVersion' field: $manifest"
 }
 
-$projectNames = @()
+# Walk projects via the shared helper, which honors `projects[].path`
+# overrides and the bare-name + 'projects/<name>/' fallbacks.
+$projectInfos = @()
 $inProjects = $false
+$currentName = $null
+$currentPath = $null
 foreach ($line in (Get-Content -LiteralPath $manifest)) {
-    # End the projects: section when we hit any *unindented* (zero leading
-    # whitespace) top-level key. Indented `key:` lines inside the section
-    # are nested fields like `projects[].path` or `projects[].type` and
-    # must NOT terminate the walk.
     if ($line -match '^[A-Za-z_]+\s*:') {
-        if ($line -match '^\s*projects\s*:') { $inProjects = $true; continue }
-        $inProjects = $false
+        if ($currentName) { $projectInfos += [pscustomobject]@{ Name = $currentName; Path = $currentPath } }
+        $currentName = $null; $currentPath = $null
+        $inProjects = ($line -match '^\s*projects\s*:')
         continue
     }
-    if ($inProjects -and $line -match '^\s*-\s*name\s*:\s*(\S+)') {
-        $projectNames += $Matches[1].Trim('"').Trim("'")
+    if (-not $inProjects) { continue }
+    if ($line -match '^\s*-\s*name\s*:\s*(\S+)') {
+        if ($currentName) { $projectInfos += [pscustomobject]@{ Name = $currentName; Path = $currentPath } }
+        $currentName = $Matches[1].Trim('"').Trim("'")
+        $currentPath = $null
+        continue
+    }
+    if ($line -match '^\s*path\s*:\s*(\S+)') {
+        $currentPath = $Matches[1].Trim('"').Trim("'")
     }
 }
+if ($currentName) { $projectInfos += [pscustomobject]@{ Name = $currentName; Path = $currentPath } }
 
-if (-not $projectNames) {
+if (-not $projectInfos) {
     Write-Warning "Could not parse any project names from the manifest. Skipping per-project existence check."
 } else {
-    foreach ($p in $projectNames) {
-        $projectDir = Join-Path $manifestDir $p
-        if (-not (Test-Path -LiteralPath $projectDir -PathType Container)) {
-            $alt = Join-Path (Join-Path $manifestDir 'projects') $p
-            if (Test-Path -LiteralPath $alt -PathType Container) { $projectDir = $alt }
+    foreach ($p in $projectInfos) {
+        $candidates = if ($p.Path) {
+            @( (Join-Path $manifestDir $p.Path) )
+        } else {
+            @( (Join-Path $manifestDir $p.Name),
+               (Join-Path (Join-Path $manifestDir 'projects') $p.Name) )
         }
-        if (-not (Test-Path -LiteralPath $projectDir -PathType Container)) {
-            throw "Project '$p' is listed in the manifest but no directory was found at '$projectDir' or 'projects/$p/'."
+        $resolved = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -First 1
+        if (-not $resolved) {
+            $shown = if ($p.Path) { "'$($p.Path)' (from explicit projects[].path)" } else { "any of: $($candidates -join '; ')" }
+            throw "Project '$($p.Name)' is listed in the manifest but no directory was found at $shown."
         }
-        Write-Host "  project '$p' -> $projectDir"
+        Write-Host "  project '$($p.Name)' -> $resolved"
     }
 }
 

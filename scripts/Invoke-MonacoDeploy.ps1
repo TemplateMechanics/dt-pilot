@@ -65,6 +65,19 @@ if ($meta.manifestSha256 -ne $currentSha) {
     throw "Manifest has changed since the dry-run was produced (SHA-256 mismatch). Re-run Invoke-MonacoDryRun.ps1 against the current manifest before deploying."
 }
 
+# Full workspace identity check: hashes the manifest plus every file under
+# every project directory it references. Catches the case where the
+# manifest itself is unchanged but a config.yaml or template.json was
+# edited after the dry-run was produced — i.e. content that Monaco would
+# read at deploy time but that was never reviewed.
+$currentWorkspace = Get-WorkspaceHash -ManifestPath $manifest
+if (-not $meta.PSObject.Properties.Match('workspaceHash')) {
+    throw "Dry-run artifact predates the workspaceHash field. Re-run Invoke-MonacoDryRun.ps1 to regenerate it: $DryRunFile"
+}
+if ($meta.workspaceHash -ne $currentWorkspace) {
+    throw "Workspace contents have changed since the dry-run was produced (workspaceHash mismatch). One or more project files (config.yaml / template.json) was edited after the dry-run. Re-run Invoke-MonacoDryRun.ps1 to regenerate the reviewed artifact."
+}
+
 # Freshness check.
 $createdAt = [datetime]::Parse($meta.createdAtUtc).ToUniversalTime()
 $ageMin = [int]([datetime]::UtcNow - $createdAt).TotalMinutes

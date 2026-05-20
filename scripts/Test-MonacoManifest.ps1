@@ -44,28 +44,45 @@ if ($content -notmatch '(?m)^\s*environmentGroups\s*:') {
     $errors.Add("missing top-level 'environmentGroups' field")
 }
 
-# Find project names and check that each has an on-disk directory. End the
-# projects: section on any *unindented* (zero leading whitespace) top-level
-# key. Indented `key:` lines inside the section are nested fields like
-# `projects[].path` or `projects[].type` and must NOT terminate the walk.
-$projectNames = @()
+# Walk the projects: section honoring optional `projects[].path` overrides.
+# End the section on any *unindented* top-level key; indented nested fields
+# (path:, type:, etc.) do NOT terminate the walk.
+$projectInfos = @()
 $inProjects = $false
+$currentName = $null
+$currentPath = $null
 foreach ($line in (Get-Content -LiteralPath $manifest)) {
     if ($line -match '^[A-Za-z_]+\s*:') {
-        if ($line -match '^\s*projects\s*:') { $inProjects = $true; continue }
-        $inProjects = $false
+        if ($currentName) { $projectInfos += [pscustomobject]@{ Name = $currentName; Path = $currentPath } }
+        $currentName = $null; $currentPath = $null
+        $inProjects = ($line -match '^\s*projects\s*:')
         continue
     }
-    if ($inProjects -and $line -match '^\s*-\s*name\s*:\s*(\S+)') {
-        $projectNames += $Matches[1].Trim('"').Trim("'")
+    if (-not $inProjects) { continue }
+    if ($line -match '^\s*-\s*name\s*:\s*(\S+)') {
+        if ($currentName) { $projectInfos += [pscustomobject]@{ Name = $currentName; Path = $currentPath } }
+        $currentName = $Matches[1].Trim('"').Trim("'")
+        $currentPath = $null
+        continue
+    }
+    if ($line -match '^\s*path\s*:\s*(\S+)') {
+        $currentPath = $Matches[1].Trim('"').Trim("'")
     }
 }
+if ($currentName) { $projectInfos += [pscustomobject]@{ Name = $currentName; Path = $currentPath } }
 
-foreach ($p in $projectNames) {
-    $direct = Join-Path $manifestDir $p
-    $nested = Join-Path (Join-Path $manifestDir 'projects') $p
+foreach ($p in $projectInfos) {
+    if ($p.Path) {
+        $explicit = Join-Path $manifestDir $p.Path
+        if (-not (Test-Path -LiteralPath $explicit -PathType Container)) {
+            $errors.Add("project '$($p.Name)' has projects[].path = '$($p.Path)' but no directory exists at '$explicit'")
+        }
+        continue
+    }
+    $direct = Join-Path $manifestDir $p.Name
+    $nested = Join-Path (Join-Path $manifestDir 'projects') $p.Name
     if (-not ((Test-Path -LiteralPath $direct -PathType Container) -or (Test-Path -LiteralPath $nested -PathType Container))) {
-        $errors.Add("project '$p' referenced in manifest but no directory found at '$direct' or '$nested'")
+        $errors.Add("project '$($p.Name)' referenced in manifest but no directory found at '$direct' or '$nested'")
     }
 }
 

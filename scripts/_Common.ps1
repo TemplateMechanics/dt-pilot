@@ -11,6 +11,10 @@ function Resolve-MonacoExe {
         [string] $MonacoExe
     )
 
+    # Precedence: explicit -MonacoExe > MONACO_EXE env var > 'monaco'
+    # discovered on PATH. The env var beats PATH so a CI pin in
+    # MONACO_EXE deterministically overrides a stray binary on the
+    # runner's PATH.
     if ($MonacoExe) {
         if (-not (Test-Path -LiteralPath $MonacoExe -PathType Leaf)) {
             throw "Monaco executable not found at the explicit -MonacoExe path: $MonacoExe"
@@ -18,15 +22,21 @@ function Resolve-MonacoExe {
         return (Resolve-Path -LiteralPath $MonacoExe).ProviderPath
     }
 
-    $cmd = Get-Command -Name monaco -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-
     $envOverride = $env:MONACO_EXE
-    if ($envOverride -and (Test-Path -LiteralPath $envOverride -PathType Leaf)) {
+    if ($envOverride) {
+        if (-not (Test-Path -LiteralPath $envOverride -PathType Leaf)) {
+            throw "MONACO_EXE points to a non-existent file: $envOverride"
+        }
         return (Resolve-Path -LiteralPath $envOverride).ProviderPath
     }
 
-    throw "Monaco CLI not found. Install from https://github.com/Dynatrace/dynatrace-configuration-as-code/releases and ensure 'monaco' is on PATH, or pass -MonacoExe."
+    # Restrict the PATH lookup to actual executables — an alias or function
+    # named 'monaco' would expose a .Source that is not a runnable file
+    # path, and the later Process.Start would fail with a confusing error.
+    $cmd = Get-Command -Name monaco -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return $cmd.Path }
+
+    throw "Monaco CLI not found. Install from https://github.com/Dynatrace/dynatrace-configuration-as-code/releases and ensure 'monaco' is on PATH, or set MONACO_EXE, or pass -MonacoExe."
 }
 
 function Resolve-ManifestPath {
@@ -94,6 +104,100 @@ function Invoke-MonacoCommand {
     }
 }
 
+function Get-ManifestProjectDirs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $ManifestPath
+    )
+
+    $manifestDir = Split-Path -Parent $ManifestPath
+    $lines = Get-Content -LiteralPath $ManifestPath
+
+    $dirs = New-Object System.Collections.Generic.List[string]
+    $inProjects = $false
+    $currentName = $null
+    $currentPath = $null
+
+    $emit = {
+        if (-not $currentName) { return }
+        $candidate = if ($currentPath) {
+            # `path:` is relative to the manifest directory.
+            Join-Path $manifestDir $currentPath
+        } else {
+            $direct = Join-Path $manifestDir $currentName
+            if (Test-Path -LiteralPath $direct -PathType Container) {
+                $direct
+            } else {
+                Join-Path (Join-Path $manifestDir 'projects') $currentName
+            }
+        }
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            $dirs.Add((Resolve-Path -LiteralPath $candidate).ProviderPath)
+        }
+    }
+
+    foreach ($line in $lines) {
+        if ($line -match '^[A-Za-z_]+\s*:') {
+            & $emit; $currentName = $null; $currentPath = $null
+            $inProjects = ($line -match '^\s*projects\s*:')
+            continue
+        }
+        if (-not $inProjects) { continue }
+        if ($line -match '^\s*-\s*name\s*:\s*(\S+)') {
+            & $emit
+            $currentName = $Matches[1].Trim('"').Trim("'")
+            $currentPath = $null
+            continue
+        }
+        if ($line -match '^\s*path\s*:\s*(\S+)') {
+            $currentPath = $Matches[1].Trim('"').Trim("'")
+        }
+    }
+    & $emit
+
+    return ,$dirs.ToArray()
+}
+
+function Get-WorkspaceHash {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $ManifestPath
+    )
+
+    # Stable hash over the manifest plus every file under every project
+    # directory it references. This is the bag of bytes Monaco will read
+    # at deploy time; binding the dry-run artifact to this hash means a
+    # post-dry-run edit to ANY config.yaml or template.json invalidates
+    # the deploy — not just an edit to manifest.yaml.
+    $files = New-Object System.Collections.Generic.List[string]
+    $files.Add((Resolve-Path -LiteralPath $ManifestPath).ProviderPath)
+
+    foreach ($dir in (Get-ManifestProjectDirs -ManifestPath $ManifestPath)) {
+        foreach ($f in (Get-ChildItem -LiteralPath $dir -Recurse -File | Sort-Object FullName)) {
+            $files.Add($f.FullName)
+        }
+    }
+
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($f in ($files | Sort-Object)) {
+        $h = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash
+        # Use the manifest-relative path so the hash is stable across
+        # clones at different absolute locations.
+        $manifestRoot = Split-Path -Parent (Resolve-Path -LiteralPath $ManifestPath).ProviderPath
+        $rel = $f.Substring($manifestRoot.Length).TrimStart('\','/')
+        [void]$sb.Append($rel).Append('|').Append($h).Append("`n")
+    }
+
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($sb.ToString())
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha.ComputeHash($bytes)
+        return ([BitConverter]::ToString($hashBytes) -replace '-','').ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+    }
+}
+
 function Write-DryRunMetadata {
     [CmdletBinding()]
     param(
@@ -105,8 +209,9 @@ function Write-DryRunMetadata {
         [Parameter(Mandatory)] [string] $RawOutput
     )
 
-    $manifestHash = (Get-FileHash -LiteralPath $ManifestPath -Algorithm SHA256).Hash
-    $createdAt    = (Get-Date).ToUniversalTime().ToString('o')
+    $manifestHash  = (Get-FileHash -LiteralPath $ManifestPath -Algorithm SHA256).Hash
+    $workspaceHash = Get-WorkspaceHash -ManifestPath $ManifestPath
+    $createdAt     = (Get-Date).ToUniversalTime().ToString('o')
 
     # Best-effort summary: count Monaco's "would create / update / delete"
     # lines. Monaco's log format is subject to change across versions — we
@@ -120,19 +225,20 @@ function Write-DryRunMetadata {
     $deleted = ([regex]::Matches($RawOutput, 'would delete', 'IgnoreCase')).Count
 
     $meta = [ordered]@{
-        schema       = 'dt-pilot.dryrun/v1'
-        createdAtUtc = $createdAt
-        environment  = $Environment
-        manifestPath = $ManifestPath
+        schema         = 'dt-pilot.dryrun/v1'
+        createdAtUtc   = $createdAt
+        environment    = $Environment
+        manifestPath   = $ManifestPath
         manifestSha256 = $manifestHash
-        monacoExe    = $MonacoExe
-        exitCode     = $ExitCode
-        summary      = [ordered]@{
+        workspaceHash  = $workspaceHash
+        monacoExe      = $MonacoExe
+        exitCode       = $ExitCode
+        summary        = [ordered]@{
             wouldCreate = $created
             wouldUpdate = $updated
             wouldDelete = $deleted
         }
-        rawOutput    = $RawOutput
+        rawOutput      = $RawOutput
     }
 
     $dir = Split-Path -Parent $OutPath
