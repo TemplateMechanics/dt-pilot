@@ -67,9 +67,10 @@ Use this as the live source of "what's broken right now" before suggesting a Mon
 fetch dt.entity.host
 | summarize hosts = count(), by: { management_zones }
 | sort hosts desc
+| limit 50
 ```
 
-`summarize` is the workhorse for inventory and capacity questions. `count()` is the most common aggregator; `sum()`, `avg()`, `min()`, `max()`, `percentile(field, 0.95)` all work.
+`summarize` is the workhorse for inventory and capacity questions. `count()` is the most common aggregator; `sum()`, `avg()`, `min()`, `max()`, `percentile(field, 0.95)` all work. Even though `summarize` already collapses the row count by grouping, an explicit `limit` is still good hygiene — it caps the displayed output and matches §6's cost discipline.
 
 ### 3.4 Span query — slowest endpoints in the last hour
 

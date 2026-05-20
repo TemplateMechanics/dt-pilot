@@ -114,7 +114,7 @@ The middle folder name (`<schema-or-api>`) is conventional and aids reviewer sca
 
 ### `config.yaml`
 
-Verbatim from the upstream Monaco fixture (`test/configuration/references/testdata/references/settings/config.yaml`):
+Adapted from the upstream Monaco fixture (`test/configuration/references/testdata/references/settings/config.yaml`), reformatted to dt-pilot's 2-space indentation:
 
 ```yaml
 configs:
@@ -274,16 +274,16 @@ parameters:
 
 ## 5. The `template.json`
 
-The payload Monaco sends to Dynatrace, with parameter substitution via Go templates. From the upstream `profile.json`:
+The payload Monaco sends to Dynatrace, with parameter substitution via Go templates. Adapted from the upstream `profile.json`, reformatted to dt-pilot's 2-space JSON indentation:
 
 ```json
 {
-    "name": "{{.name}}",
-    "managementZone": "{{.managementZoneId}}",
-    "severityRules": [
-        { "severityLevel": "PERFORMANCE", "delayInMinutes": 30, "tagFilterIncludeMode": "NONE" }
-    ],
-    "eventFilters": []
+  "name": "{{.name}}",
+  "managementZone": "{{.managementZoneId}}",
+  "severityRules": [
+    { "severityLevel": "PERFORMANCE", "delayInMinutes": 30, "tagFilterIncludeMode": "NONE" }
+  ],
+  "eventFilters": []
 }
 ```
 
