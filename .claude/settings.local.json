@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.dynatrace.com)",
+      "WebFetch(domain:github.com)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\GitHub CLI;$env:PATH\"; git init -b main; git remote add origin git@github.com:TemplateMechanics/dt-pilot.git; git commit --allow-empty -m \"chore: initialize repository\"; git push -u origin main 2>&1 | Select-Object -Last 10)",
+      "PowerShell(git checkout -b chore/repo-meta)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\GitHub CLI;$env:PATH\"; git add -A; git status --short; git commit -m \"chore\\(meta\\): bootstrap repository meta files`n`n- README with architecture and quick-start`n- LICENSE \\(MIT\\)`n- .gitignore tuned for Monaco/dry-run/MCP-session artifacts`n- CONTRIBUTING + SECURITY + CODE_OF_CONDUCT`n- CHANGELOG \\(Keep a Changelog format\\)`n- .github/pull_request_template.md`n- docs/BRANCH-WORKFLOW.md codifying never-commit-to-main rule\" 2>&1 | Select-Object -Last 5; git push -u origin chore/repo-meta 2>&1 | Select-Object -Last 5)"
+    ]
+  }
+}
