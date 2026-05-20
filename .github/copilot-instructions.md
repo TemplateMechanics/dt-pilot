@@ -24,7 +24,7 @@ This workspace is a Dynatrace configuration-as-code harness built on the **Monac
 
 - **YAML:** 2-space indentation, no tabs, LF line endings, UTF-8 without BOM.
 - **JSON templates:** 2-space indentation. Keep `{{ .parameter }}` placeholders close to the parameter definitions in the sibling `.yaml`.
-- **PowerShell scripts:** target PowerShell 7+. Approved verbs (`Get-`, `Invoke-`, `Test-`, `Set-`, `New-`, `Sync-`). `[CmdletBinding()]` + `param(...)` always. Wrappers that operate on a specific Monaco manifest or project take an explicit `-Path` parameter and never rely on `$PWD`. Repo-wide gates (e.g. `Pre-Commit.ps1`, `Sync-ConfigCatalog.ps1` in its default mode) operate on the repository root and may be invoked without `-Path`.
+- **PowerShell scripts:** target PowerShell 7+. Approved verbs (`Get-`, `Invoke-`, `Test-`, `Set-`, `New-`, `Sync-`). `[CmdletBinding()]` + `param(...)` always. The full `-Path` convention is documented in `CONTRIBUTING.md` and `CLAUDE.md` (per-manifest wrappers take `-Path`; repo-wide gates do not). Follow that convention; this file does not re-derive the carve-out, so the two sources stay in sync.
 - **Markdown:** wrap at ~100 chars where practical.
 
 ## PR Workflow (concise)

@@ -30,18 +30,20 @@ For platform-deep or workflow-deep decisions, route to:
 
 ### Operations
 
-- Initialize / sanity-check a Monaco workspace
-- Run `monaco deploy --dry-run`, parse the output, summarize, surface destructive operations
-- Deploy a reviewed dry-run
+All operations below run through the `scripts/` wrappers (introduced in PR&nbsp;4). The wrappers themselves invoke `monaco` under the hood with appropriate flags and guardrails; you do not type `monaco` directly.
+
+- Initialize / sanity-check a Monaco workspace (via `Initialize-MonacoWorkspace.ps1`)
+- Produce a saved dry-run summary, parse it, surface destructive operations (via `Invoke-MonacoDryRun.ps1`, which wraps `monaco deploy --dry-run`)
+- Deploy a reviewed dry-run (via `Invoke-MonacoDeploy.ps1`, which wraps `monaco deploy`)
 - Manage environment groups and per-environment overrides
-- Download existing configuration from a live environment for reconciliation
-- Generate deletefiles, dependency graphs, and JSON schemas
+- Download existing configuration from a live environment for reconciliation (via `Invoke-MonacoDownload.ps1`)
+- Generate deletefiles, dependency graphs, and JSON schemas (via `Invoke-MonacoGenerate.ps1`)
 - Answer DQL questions using MCP context (`execute_dql`, `verify_dql`, `generate_dql_from_natural_language`)
 - Find Dynatrace entities (`find_entity_by_name`)
 
 ### Automation — MCP first, scripts for guarded execution
 
-Use the Dynatrace MCP server for discovery and read-oriented tasks. Never type `monaco` directly for execution workflows. The `scripts/` folder (introduced in PR&nbsp;4) contains tested wrappers:
+Use the Dynatrace MCP server for discovery and read-oriented tasks. For execution workflows, use the wrapper scripts in `scripts/` (introduced in PR&nbsp;4) — they invoke `monaco` with the right flags and guardrails so you don't have to. Only fall back to typing `monaco` directly if a wrapper for the task you need genuinely doesn't exist yet, and surface that gap to the user so the missing wrapper can be added in a follow-up PR.
 
 | Task | Command |
 |------|---------|

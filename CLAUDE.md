@@ -25,7 +25,7 @@ When touching reflected catalog modules under `modules/configs/` or `config/cata
 3. **Every project listed in `manifest.yaml` must exist** under `projects/<name>/` and contain at least one valid config.
 4. **Save `.yaml`/`.json` files as UTF-8 without BOM**, LF line endings.
 5. **NEVER edit the Dynatrace environment directly via the UI for configurations that Monaco owns.** Out-of-band UI changes drift away from the manifest and will be silently overwritten on the next `monaco deploy`. If a UI change is genuinely needed, `monaco download` the change back into source first.
-6. **NEVER run `monaco deploy` without first running `Invoke-MonacoDryRun.ps1` and getting explicit user approval of the planned changes.** This is dt-pilot's equivalent of tf-pilot's plan-before-apply rule. The two-step sequence is non-negotiable. Do not pass `--auto-deploy` or any non-interactive deploy flag unless the user has explicitly authorized it for this exact run.
+6. **NEVER run a real `monaco deploy` (i.e. without `--dry-run`) without first running `Invoke-MonacoDryRun.ps1` and getting explicit user approval of the planned changes.** This is dt-pilot's equivalent of tf-pilot's plan-before-apply rule. The two-step sequence is non-negotiable. (`monaco deploy --dry-run` is *not* a real deploy and is what `Invoke-MonacoDryRun.ps1` and `Validate-Monaco.ps1` wrap — those invocations do not require additional approval.) Do not pass `--auto-deploy` or any non-interactive deploy flag on a real deploy unless the user has explicitly authorized it for this exact run.
 7. **NEVER run `monaco delete` (or `Invoke-MonacoDelete.ps1`) without an explicit delete authorization in the conversation AND an explicit `-Confirm` flag.** Delete is irreversible at the Dynatrace platform layer for many config types.
 8. **`monaco delete` requires a deletefile.** Generate it via `Invoke-MonacoGenerate.ps1 -Type deletefile`. Review the deletefile before invoking delete. Never reuse an old deletefile if the manifest or projects have changed.
 9. **After editing any `.yaml` or `.json` template**, always run `Validate-Monaco.ps1` (which wraps `monaco deploy --dry-run`) before producing a real dry-run for review. This catches structural errors fast.
@@ -77,7 +77,7 @@ Use these scripts as the execution path after MCP-guided analysis.
 ## Terminal Expectations
 
 - **Assume Windows PowerShell 7+** by default (the cross-platform `pwsh`). The wrapper scripts also run on macOS/Linux pwsh.
-- **Execute repo commands from the repository root** and pass explicit `-Path` values to the wrapper scripts. Do not depend on the terminal already being inside a child directory.
+- **Execute repo commands from the repository root.** Wrappers that operate on a specific Monaco manifest or project (the `Invoke-Monaco*` family, `Validate-Monaco.ps1`, `Initialize-MonacoWorkspace.ps1`, `Test-MonacoManifest.ps1`) take an explicit `-Path` parameter — always pass it, do not rely on the caller's `$PWD`. Repo-wide gates (`Pre-Commit.ps1`, `Get-MonacoVersion.ps1`, `Sync-ConfigCatalog.ps1` in its default mode, `Test-McpConfigSecrets.ps1`) intentionally operate on the repository root and do not take `-Path`.
 - **Avoid Unix shell commands in PowerShell sessions.** `tail`, `uniq`, `grep`, and `sed` are not reliable defaults here and should be replaced with PowerShell equivalents.
 
 ### PowerShell equivalents
