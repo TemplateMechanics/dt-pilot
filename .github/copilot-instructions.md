@@ -6,7 +6,7 @@ This workspace is a Dynatrace configuration-as-code harness built on the **Monac
 
 ## Read Before Editing
 
-1. [`skills/dynatrace/SKILL.md`](../skills/dynatrace/SKILL.md) — canonical Monaco + DQL reference *(lands in PR&nbsp;3)*.
+1. `skills/dynatrace/SKILL.md` — canonical Monaco + DQL reference *(planned, lands in PR&nbsp;3; the link will become live then)*.
 2. [`docs/BRANCH-WORKFLOW.md`](../docs/BRANCH-WORKFLOW.md) — branch naming + squash-merge policy + Copilot review loop.
 
 ## Non-Negotiable Rules (mirror of `CLAUDE.md` "Key Rules")

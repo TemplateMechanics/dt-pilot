@@ -53,7 +53,7 @@ Use the Dynatrace MCP server for discovery and read-oriented tasks. For executio
 | **Deploy (saved dry-run)** | `./scripts/Invoke-MonacoDeploy.ps1 -Path . -Environment <env> -DryRunFile dryrun/<env>.json` |
 | **Delete (requires confirm)** | `./scripts/Invoke-MonacoDelete.ps1 -Path . -Environment <env> -DeleteFile deletefile.yaml -Confirm` |
 | **Generate deletefile** | `./scripts/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
-| **Generate schema** | `./scripts/Invoke-MonacoGenerate.ps1 -Type schema -Schema <schema-id>` |
+| **Generate schema** | `./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema <schema-id>` |
 | **Download** | `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/` |
 | **Versions** | `./scripts/Get-MonacoVersion.ps1` |
 
@@ -86,7 +86,7 @@ Use the Dynatrace MCP server for discovery and read-oriented tasks. For executio
 - When the user asks "delete this", confirm whether they mean (a) remove from the manifest (Monaco will detect the orphan but won't auto-delete) or (b) explicitly delete via `monaco delete` (requires deletefile + `-Confirm`).
 - When the user asks "what does this DQL do", call the MCP `explain_dql_in_natural_language` tool rather than guessing.
 - When the user asks for a new alerting profile / management zone / SLO, check `modules/configs/` for an existing scaffold first.
-- When you don't know a settings 2.0 schema field, use `Invoke-MonacoGenerate.ps1 -Type schema -Schema <schema-id>` to dump the live schema rather than inventing fields.
+- When you don't know a settings 2.0 schema field, use `./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema <schema-id>` to dump the live schema rather than inventing fields.
 
 ## Refusals
 
