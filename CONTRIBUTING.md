@@ -76,8 +76,10 @@ builds.
 
 - **PowerShell:** scripts target PowerShell 7+. Use approved verbs (`Get-`,
   `Invoke-`, `Test-`, `Set-`, `New-`, `Sync-`). Use `[CmdletBinding()]` and
-  `param(...)` blocks. Wrappers that operate on a specific Monaco manifest
-  or project (the `Invoke-Monaco*` family, `Validate-Monaco.ps1`,
+  `param(...)` blocks. The named wrappers below are **planned**; they land
+  across PRs 4–8. Once they exist, follow the `-Path` convention they
+  encode: wrappers that operate on a specific Monaco manifest or project
+  (the `Invoke-Monaco*` family, `Validate-Monaco.ps1`,
   `Initialize-MonacoWorkspace.ps1`, `Test-MonacoManifest.ps1`) take an
   explicit `-Path` parameter — always pass it, do not rely on the caller's
   `$PWD`. Repo-wide gates (`Pre-Commit.ps1`, `Get-MonacoVersion.ps1`,
