@@ -1,0 +1,34 @@
+{
+  "$schema": "./schemas/mcp-servers-catalog.schema.json",
+  "_comment": "Authoritative list of MCP servers dt-pilot knows how to launch. Set-McpServerState.ps1 and New-McpSessionConfig.ps1 read this file. 'alwaysEnabled' servers cannot be disabled via chat-driven toggles. 'requiresEnv' lists environment variables the server needs at runtime — Test-DynatraceMcpReadiness.ps1 enforces these.",
+  "version": "1.0",
+  "servers": [
+    {
+      "id": "dynatrace",
+      "displayName": "Dynatrace MCP Server",
+      "description": "Official Dynatrace MCP server (DQL, problems, vulnerabilities, entities, Davis Copilot). Wraps @dynatrace-oss/dynatrace-mcp-server via the Start-DynatraceMcpServer.ps1 launcher.",
+      "homepage": "https://github.com/dynatrace-oss/dynatrace-mcp",
+      "defaultEnabled": true,
+      "alwaysEnabled": true,
+      "requiresEnv": [
+        "DT_ENVIRONMENT"
+      ],
+      "acceptsOneOfEnv": [
+        ["DT_PLATFORM_TOKEN"],
+        ["OAUTH_CLIENT_ID", "OAUTH_CLIENT_SECRET"]
+      ]
+    },
+    {
+      "id": "context7",
+      "displayName": "Context7 (Upstash)",
+      "description": "Library / package documentation lookup. Off by default. Enable only if you actively want documentation snippets injected into agent context.",
+      "homepage": "https://github.com/upstash/context7",
+      "defaultEnabled": false,
+      "alwaysEnabled": false,
+      "requiresEnv": [],
+      "acceptsOneOfEnv": [
+        ["CONTEXT7_API_KEY"]
+      ]
+    }
+  ]
+}

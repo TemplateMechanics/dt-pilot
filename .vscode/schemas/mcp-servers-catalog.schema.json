@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://templatemechanics.github.io/dt-pilot/schemas/mcp-servers-catalog.schema.json",
+  "title": "dt-pilot MCP servers catalog",
+  "description": "Schema for .vscode/mcp.servers.catalog.json — the authoritative list of MCP servers dt-pilot knows how to launch and toggle.",
+  "type": "object",
+  "required": ["version", "servers"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Catalog schema version (semver-ish: major.minor)."
+    },
+    "servers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/server" }
+    }
+  },
+  "$defs": {
+    "server": {
+      "type": "object",
+      "required": ["id", "displayName", "defaultEnabled", "alwaysEnabled"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Server identifier; must match the key under 'servers' in .vscode/mcp.json."
+        },
+        "displayName": { "type": "string" },
+        "description": { "type": "string" },
+        "homepage": { "type": "string", "format": "uri" },
+        "defaultEnabled": {
+          "type": "boolean",
+          "description": "Initial state when New-McpSessionConfig.ps1 generates a fresh session config."
+        },
+        "alwaysEnabled": {
+          "type": "boolean",
+          "description": "When true, Set-McpServerState.ps1 refuses to disable this server."
+        },
+        "requiresEnv": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Environment variables that MUST be set for this server to function. Test-DynatraceMcpReadiness.ps1 enforces this list."
+        },
+        "acceptsOneOfEnv": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": "Sets of environment variables; AT LEAST ONE complete set must be satisfied. Used to express 'either DT_PLATFORM_TOKEN, or (OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET)'."
+        }
+      }
+    }
+  }
+}
