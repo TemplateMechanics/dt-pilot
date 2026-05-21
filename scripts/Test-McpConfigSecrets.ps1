@@ -189,7 +189,11 @@ foreach ($file in $mcpTargets) {
 # committed inline value is always a smell.
 $tfArgRegex = '^\s*(url|api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
 foreach ($file in $tfTargets) {
-    $lines = Get-Content -LiteralPath $file
+    # Force an array: Get-Content returns a scalar string for
+    # single-line files, which would make $lines[$i] index characters
+    # rather than lines (and miss secrets in any .tf file that's a
+    # single line).
+    $lines = @(Get-Content -LiteralPath $file)
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
         $loc  = "line $($i + 1)"

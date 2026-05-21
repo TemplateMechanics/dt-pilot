@@ -124,7 +124,7 @@ provider "dynatrace" {
 }
 ```
 
-A committed `provider "dynatrace" { url = "..." }` is a deployment-blocker; the `Test-McpConfigSecrets.ps1` scanner flags it and the pre-commit gate fails.
+A committed inline-literal credential — `provider "dynatrace" { url = "https://abc123.live.dynatrace.com" }` or `api_token = "dt0c01.XXXX..."` — is a deployment-blocker; the `Test-McpConfigSecrets.ps1` scanner flags any `url` / `api_token` / `client_id` / `client_secret` / `account_id` whose RHS is a string literal and the pre-commit gate fails. Interpolated references (`url = "https://${var.tenant}"`, `api_token = var.api_token`, `client_secret = local.secret`) are *not* flagged — they resolve to env-fed values at runtime, which is the convention this guide tells you to follow.
 
 ### 4.3 Variables are typed and documented
 
