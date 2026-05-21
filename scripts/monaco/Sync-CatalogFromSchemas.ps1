@@ -190,7 +190,12 @@ function New-CatalogEntryFromSchema {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $SchemaId,
-        [Parameter(Mandatory)]            $Schema,         # parsed JSON object, untyped (pscustomobject or hashtable)
+        # Parsed JSON Schema from `monaco generate schema` (or the
+        # test-stub equivalent). MUST be a [pscustomobject] -- the
+        # body reads optional fields via .PSObject.Properties, which
+        # does not see hashtable keys. ConvertFrom-Json returns
+        # pscustomobject by default, so this matches the real call.
+        [Parameter(Mandatory)] [pscustomobject] $Schema,
         $Existing                                          # existing catalog entry (pscustomobject) or $null
     )
 

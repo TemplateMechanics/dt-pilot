@@ -664,10 +664,10 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
     }
 
     It 'emits a placeholder entry when an unresolvable schema has no existing entry (no silent drop)' {
-        # Regression for Copilot PR #13 pass 3: a brand-new schema added
-        # to schemas.txt that the cron cannot resolve must produce a
-        # placeholder catalog entry (family: misc, summary TODO,
-        # liveFields: []) rather than disappearing. Otherwise the
+        # Regression test: a brand-new schema ID added to schemas.txt
+        # that the cron cannot resolve must produce a placeholder
+        # catalog entry (family: misc, summary TODO, liveFields: [])
+        # rather than disappearing. Without the placeholder, the
         # downstream Sync-ConfigCatalog wipe+regen would silently drop
         # the scaffold dir on the first transient upstream failure.
         $unresolvableStub = { param([string] $SchemaId) return $null }
@@ -729,11 +729,13 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
     }
 
     It 'serializes an unresolvable existing entry as [] (not [null]) when the seed lacks liveFields' {
-        # Models the realistic case: the committed catalog today has NO
-        # liveFields field (it lands with this PR), so re-emitting an
-        # unresolvable existing entry must coerce missing arrays to []
-        # rather than [null]. Regression for the Format-CatalogJson
-        # null-handling bug Copilot caught on PR #13 pass 2.
+        # Regression test for the Format-CatalogJson null-handling
+        # path: existing catalog entries authored before liveFields
+        # existed don't have that key. When the refresh re-emits such
+        # an entry (because the schema was unresolvable upstream),
+        # the formatter must coerce the missing array to [] instead
+        # of serializing as [null]. Asserts both the parsed shape
+        # AND a regex against the raw bytes for '\[null\]'.
         $partialStub = {
             param([string] $SchemaId)
             if ($SchemaId -eq 'builtin:slo') { return $null }
