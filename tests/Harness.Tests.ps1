@@ -873,3 +873,372 @@ Describe 'Invoke-MonacoDelete.ps1 rejection paths' {
         }
     }
 }
+
+# ======================================================================
+# Terraform backend (Design 003)
+# ======================================================================
+
+Describe 'Terraform backend (Design 003)' {
+    BeforeAll {
+        $script:TerraformDir = Join-Path $script:ScriptDir 'terraform'
+        . (Join-Path $script:TerraformDir '_Common.ps1')
+
+        function New-TempTfWorkspace {
+            param([hashtable] $Files)
+            $root = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tf-" + [System.Guid]::NewGuid().ToString('N'))
+            $null = New-Item -ItemType Directory -Path $root -Force
+            if ($Files) {
+                foreach ($rel in $Files.Keys) {
+                    $full = Join-Path $root $rel
+                    $dir  = Split-Path -Parent $full
+                    if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+                    Set-Content -LiteralPath $full -Value $Files[$rel] -Encoding utf8
+                }
+            }
+            return $root
+        }
+
+        # Fake terraform binary path -- _Common.Resolve-TerraformExe checks
+        # the file exists but the wrappers' rejection paths all fire before
+        # we'd actually launch it. Re-use the Pester test file itself,
+        # which definitely exists.
+        $script:FakeTfExe = (Get-Item -LiteralPath $PSCommandPath).FullName
+    }
+
+    Context '_Common.Resolve-TerraformWorkingDir' {
+        It 'returns the resolved path when the dir contains .tf files' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                (Resolve-TerraformWorkingDir -Path $root) | Should -Be (Resolve-Path -LiteralPath $root).ProviderPath
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'throws on a directory with no .tf files' {
+            $root = New-TempTfWorkspace -Files @{ 'readme.md' = 'no terraform here' }
+            try {
+                { Resolve-TerraformWorkingDir -Path $root } | Should -Throw -ExpectedMessage '*No .tf files*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'throws when -Path is a file instead of a directory' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                { Resolve-TerraformWorkingDir -Path (Join-Path $root 'main.tf') } | Should -Throw -ExpectedMessage '*must be a directory*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+    }
+
+    Context '_Common.Set-TerraformProviderEnv' {
+        It 'translates DT_ENVIRONMENT -> DT_ENV_URL and DT_PLATFORM_TOKEN -> DT_API_TOKEN' {
+            # Save and restore so we don't pollute the test runner env.
+            $origs = @{}
+            foreach ($n in @('DT_ENVIRONMENT','DT_PLATFORM_TOKEN','OAUTH_CLIENT_ID','OAUTH_CLIENT_SECRET',
+                              'DT_ENV_URL','DT_API_TOKEN','DT_CLIENT_ID','DT_CLIENT_SECRET')) {
+                $origs[$n] = [System.Environment]::GetEnvironmentVariable($n)
+            }
+            try {
+                $env:DT_ENVIRONMENT    = 'https://example.test.dynatrace.com'
+                $env:DT_PLATFORM_TOKEN = 'dt-pilot-test-platform-token'
+                $env:DT_ENV_URL        = $null
+                $env:DT_API_TOKEN      = $null
+                Set-TerraformProviderEnv
+                $env:DT_ENV_URL   | Should -Be 'https://example.test.dynatrace.com'
+                $env:DT_API_TOKEN | Should -Be 'dt-pilot-test-platform-token'
+            } finally {
+                foreach ($k in $origs.Keys) {
+                    if ($null -eq $origs[$k]) {
+                        Remove-Item -Path "env:$k" -ErrorAction SilentlyContinue
+                    } else {
+                        Set-Item -Path "env:$k" -Value $origs[$k]
+                    }
+                }
+            }
+        }
+
+        It 'translates OAUTH_CLIENT_ID/SECRET -> DT_CLIENT_ID/SECRET' {
+            $origs = @{}
+            foreach ($n in @('OAUTH_CLIENT_ID','OAUTH_CLIENT_SECRET','DT_CLIENT_ID','DT_CLIENT_SECRET')) {
+                $origs[$n] = [System.Environment]::GetEnvironmentVariable($n)
+            }
+            try {
+                $env:OAUTH_CLIENT_ID     = 'tf-test-client-id'
+                $env:OAUTH_CLIENT_SECRET = 'tf-test-client-secret'
+                $env:DT_CLIENT_ID        = $null
+                $env:DT_CLIENT_SECRET    = $null
+                Set-TerraformProviderEnv
+                $env:DT_CLIENT_ID     | Should -Be 'tf-test-client-id'
+                $env:DT_CLIENT_SECRET | Should -Be 'tf-test-client-secret'
+            } finally {
+                foreach ($k in $origs.Keys) {
+                    if ($null -eq $origs[$k]) {
+                        Remove-Item -Path "env:$k" -ErrorAction SilentlyContinue
+                    } else {
+                        Set-Item -Path "env:$k" -Value $origs[$k]
+                    }
+                }
+            }
+        }
+    }
+
+    Context '_Common.Get-TerraformWorkspaceHash' {
+        It 'changes when a .tf file changes' {
+            $root = New-TempTfWorkspace -Files @{
+                'main.tf'     = 'resource "null_resource" "x" {}'
+                'variables.tf'= 'variable "y" { type = string }'
+            }
+            try {
+                $before = Get-TerraformWorkspaceHash -WorkingDir $root
+                Set-Content -LiteralPath (Join-Path $root 'main.tf') -Value 'resource "null_resource" "z" {}' -Encoding utf8
+                $after  = Get-TerraformWorkspaceHash -WorkingDir $root
+                $before | Should -Not -Be $after
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'is stable across re-reads when nothing changes' {
+            $root = New-TempTfWorkspace -Files @{
+                'main.tf'      = 'resource "null_resource" "x" {}'
+                'dev.tfvars'   = 'foo = "bar"'
+            }
+            try {
+                (Get-TerraformWorkspaceHash -WorkingDir $root) | Should -Be (Get-TerraformWorkspaceHash -WorkingDir $root)
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'ignores files under .terraform/ (provider cache)' {
+            $root = New-TempTfWorkspace -Files @{
+                'main.tf' = 'resource "null_resource" "x" {}'
+                '.terraform/providers/registry/example.tf' = 'cached provider data; not source'
+            }
+            try {
+                $hash = Get-TerraformWorkspaceHash -WorkingDir $root
+                # If .terraform/ files were included, changing one would
+                # change the hash; the cache changing should NOT.
+                Set-Content -LiteralPath (Join-Path $root '.terraform/providers/registry/example.tf') -Value 'cached provider data CHANGED' -Encoding utf8
+                $hash2 = Get-TerraformWorkspaceHash -WorkingDir $root
+                $hash | Should -Be $hash2
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+    }
+
+    Context '_Common.Read-TfPlanMetadata' {
+        It 'rejects a wrong-schema artifact' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfbad-" + [System.Guid]::NewGuid().ToString('N') + ".json")
+            '{"schema":"other/v9","environment":"dev","exitCode":0}' | Set-Content -LiteralPath $tmp -Encoding utf8
+            try {
+                { Read-TfPlanMetadata -PlanFile $tmp } | Should -Throw -ExpectedMessage '*not a dt-pilot tfplan/v1*'
+            } finally {
+                Remove-Item -LiteralPath $tmp -Force
+            }
+        }
+
+        It 'rejects a failed plan (exitCode != 0)' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfbad-" + [System.Guid]::NewGuid().ToString('N') + ".json")
+            '{"schema":"dt-pilot.tfplan/v1","environment":"dev","exitCode":7}' | Set-Content -LiteralPath $tmp -Encoding utf8
+            try {
+                { Read-TfPlanMetadata -PlanFile $tmp } | Should -Throw -ExpectedMessage '*non-zero exit*'
+            } finally {
+                Remove-Item -LiteralPath $tmp -Force
+            }
+        }
+
+        It 'rejects a missing file' {
+            $missing = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfgone-" + [System.Guid]::NewGuid().ToString('N') + ".json")
+            { Read-TfPlanMetadata -PlanFile $missing } | Should -Throw -ExpectedMessage '*does not exist*'
+        }
+    }
+
+    Context 'Invoke-TerraformApply.ps1 rejection paths' {
+        # Helper that writes a complete envelope + binary plan file pair so
+        # the apply wrapper has something to reject.
+        function New-TfPlanArtifacts {
+            param(
+                [string] $WorkingDir,
+                [string] $Environment,
+                [string] $Schema = 'dt-pilot.tfplan/v1',
+                [int]    $ExitCode = 0,
+                [string] $CreatedAtUtc,
+                [string] $WorkspaceHash,
+                [switch] $SkipBinary
+            )
+            if (-not $CreatedAtUtc)  { $CreatedAtUtc  = (Get-Date).ToUniversalTime().ToString('o') }
+            if (-not $WorkspaceHash) { $WorkspaceHash = Get-TerraformWorkspaceHash -WorkingDir $WorkingDir }
+            $planBin = Join-Path $WorkingDir 'tfplan'
+            if (-not $SkipBinary) {
+                Set-Content -LiteralPath $planBin -Value 'fake binary plan' -Encoding utf8
+            }
+            $envelope = [ordered]@{
+                schema           = $Schema
+                createdAtUtc     = $CreatedAtUtc
+                environment      = $Environment
+                workingDir       = $WorkingDir
+                workspaceHash    = $WorkspaceHash
+                terraformVersion = '1.10.0'
+                terraformExe     = $script:FakeTfExe
+                exitCode         = $ExitCode
+                summary          = [ordered]@{ wouldAdd = 0; wouldChange = 0; wouldDestroy = 0 }
+                planBinary       = $planBin
+                planJsonSummary  = ''
+            }
+            $envPath = Join-Path $WorkingDir 'dryrun.json'
+            $dir = Split-Path -Parent $envPath
+            if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+            $envelope | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $envPath -Encoding utf8
+            return @{ Envelope = $envPath; Binary = $planBin }
+        }
+
+        It 'rejects a missing PlanFile' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile (Join-Path $root 'does-not-exist.json') `
+                    -TerraformExe $script:FakeTfExe } | Should -Throw -ExpectedMessage '*does not exist*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'rejects an environment mismatch' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'staging'
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage "*environment 'staging'*"
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'rejects a stale envelope (older than -MaxAgeMinutes)' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $stale = (Get-Date).AddMinutes(-90).ToUniversalTime().ToString('o')
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev' -CreatedAtUtc $stale
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -MaxAgeMinutes 30 -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*minute(s) old*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'rejects a workspace edit after plan (workspaceHash mismatch)' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev'
+                # Edit AFTER the envelope captured the hash.
+                Set-Content -LiteralPath (Join-Path $root 'main.tf') -Value 'resource "null_resource" "edited" {}' -Encoding utf8
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*workspaceHash mismatch*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'rejects when the binary plan file no longer exists' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev'
+                Remove-Item -LiteralPath $art.Binary -Force
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*Binary plan file*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+    }
+
+    Context 'Invoke-TerraformDestroy.ps1 rejection paths' {
+        It 'refuses without -Confirm' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                # Mandatory -Confirm switch fails parameter binding.
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformDestroy.ps1') `
+                    -Path $root -Environment dev -TerraformExe $script:FakeTfExe } | Should -Throw
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+    }
+}
+
+Describe 'Test-McpConfigSecrets.ps1 extended to .tf scanning' {
+    It 'flags an inline url = "https://*.live.dynatrace.com/" in a .tf file' {
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfsec-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $bad = @'
+provider "dynatrace" {
+  url       = "https://abc12345.live.dynatrace.com"
+  api_token = "dt0c01.ABCDEFGHIJKLMNOPQRSTUVWX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+}
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
+
+        # Override $PSScriptRoot via string substitution so the scanner
+        # treats $tmpDir as the repo root.
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 1
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
+    It 'does NOT flag a .tf file that reads everything via var. references' {
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfok-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $good = @'
+provider "dynatrace" {}
+
+resource "dynatrace_management_zone_v2" "x" {
+  name = var.zone_name
+}
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'main.tf') -Value $good -Encoding utf8
+
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+}
+
+Describe 'Sync-TerraformCatalog.ps1' {
+    It '-Check passes against the committed modules/terraform/configs/' {
+        & (Join-Path $script:ScriptDir 'terraform/Sync-TerraformCatalog.ps1') -Check *>&1 | Out-Null
+        $LASTEXITCODE | Should -Be 0
+    }
+}

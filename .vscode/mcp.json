@@ -26,6 +26,17 @@
         "CONTEXT7_API_KEY": "${input:context7_api_key}"
       },
       "disabled": true
+    },
+    "terraform": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:latest"
+      ],
+      "disabled": true
     }
   },
   "inputs": [

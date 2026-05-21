@@ -1,0 +1,17 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+
+variable "notification_name" {
+  type        = string
+  description = "Display name for the notification."
+}
+
+variable "alerting_profile_id" {
+  type        = string
+  description = "ID of the alerting profile this notification fires against."
+}
+
+variable "recipient_email" {
+  type        = string
+  description = "Email recipient (used by the email {} nested block; remove if the channel is not email)."
+}

@@ -1,0 +1,69 @@
+<#
+.SYNOPSIS
+    Run `terraform fmt -check` and `terraform validate` on a working
+    directory. Fast feedback loop after editing .tf files; runs in
+    pre-commit and CI.
+
+.DESCRIPTION
+    Two-step structural check:
+      1. `terraform fmt -check -recursive` -- non-zero if any .tf file
+         isn't canonically formatted.
+      2. `terraform validate` -- non-zero if the configuration is
+         syntactically invalid or references unknown providers /
+         resources / variables.
+
+    Neither step talks to Dynatrace. To exercise the full path against
+    a live tenant, use Invoke-TerraformPlan.ps1.
+
+.PARAMETER Path
+    Directory containing the .tf files.
+
+.PARAMETER TerraformExe
+    Override the Terraform executable lookup.
+
+.PARAMETER SkipFmt
+    Skip the fmt check (e.g. during a deliberately mid-formatting
+    refactor). Use sparingly; CI does NOT honor this flag.
+
+.EXAMPLE
+    ./scripts/terraform/Validate-Terraform.ps1 -Path examples/terraform-baseline
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)] [string] $Path,
+    [string] $TerraformExe,
+    [switch] $SkipFmt
+)
+
+. "$PSScriptRoot/_Common.ps1"
+
+$exe     = Resolve-TerraformExe -TerraformExe $TerraformExe
+$workDir = Resolve-TerraformWorkingDir -Path $Path
+
+$failed = $false
+
+if (-not $SkipFmt) {
+    Write-Host "terraform fmt -check"
+    $fmt = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('fmt','-check','-recursive') -WorkingDirectory $workDir -CaptureOutput
+    if ($fmt.StdOut) { Write-Host $fmt.StdOut.TrimEnd() }
+    if ($fmt.ExitCode -ne 0) {
+        Write-Host "fmt FAILED (run 'terraform fmt -recursive' to fix)" -ForegroundColor Red
+        $failed = $true
+    }
+} else {
+    Write-Host "fmt check skipped via -SkipFmt" -ForegroundColor DarkGray
+}
+
+Write-Host "terraform validate"
+$val = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('validate') -WorkingDirectory $workDir -CaptureOutput
+if ($val.StdOut) { Write-Host $val.StdOut.TrimEnd() }
+if ($val.StdErr) { Write-Host $val.StdErr.TrimEnd() }
+if ($val.ExitCode -ne 0) {
+    Write-Host "validate FAILED (exit $($val.ExitCode))" -ForegroundColor Red
+    $failed = $true
+}
+
+if ($failed) { exit 1 }
+Write-Host "Validation passed." -ForegroundColor Green
+exit 0

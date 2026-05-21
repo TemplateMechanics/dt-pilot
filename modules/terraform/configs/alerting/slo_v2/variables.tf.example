@@ -1,0 +1,22 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+
+variable "slo_name" {
+  type        = string
+  description = "Display name for the SLO."
+}
+
+variable "target_pct" {
+  type        = number
+  description = "Target percentage (0-100). Validation lives in the consuming variables.tf."
+}
+
+variable "warning_pct" {
+  type        = number
+  description = "Warning percentage (0-100). MUST be lower than target_pct."
+}
+
+variable "management_zone_id" {
+  type        = string
+  description = "ID of the management zone the SLO filters on."
+}

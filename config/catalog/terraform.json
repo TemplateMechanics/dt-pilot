@@ -1,0 +1,69 @@
+{
+  "$schema": "./terraform.schema.json",
+  "_comment": "Reflected catalog of Dynatrace Terraform-provider resource types that dt-pilot ships scaffolds for. Sync-TerraformCatalog.ps1 reads this file and regenerates modules/terraform/configs/<family>/<resource-name-minus-dynatrace-prefix>/. Adding a row is the cheapest way to extend Terraform scaffold coverage; keep the catalog curated and prefer the _v2 settings-2.0 resource shapes.",
+  "version": "1.0",
+  "resources": [
+    {
+      "resourceType": "dynatrace_management_zone_v2",
+      "family": "topology",
+      "displayName": "Management Zone (v2)",
+      "summary": "Settings 2.0 management zone with attribute / dimension rules. Most downstream alerting / SLO / dashboard filters reference a management zone, so this is usually the first resource a new project adopts.",
+      "commonVariables": [
+        { "name": "zone_name", "type": "string", "description": "Display name for the management zone." }
+      ]
+    },
+    {
+      "resourceType": "dynatrace_autotag_v2",
+      "family": "topology",
+      "displayName": "Auto-Tag Rule (v2)",
+      "summary": "Settings 2.0 auto-tag rule. Tags become the primary input to downstream management-zone and alerting filters, so auto-tags usually deploy before everything else that references them.",
+      "commonVariables": [
+        { "name": "tag_name",       "type": "string", "description": "Tag key (the right-hand side will come from the rule expression)." },
+        { "name": "rule_expression","type": "string", "description": "DQL-like or attribute predicate that selects the entities to tag." }
+      ]
+    },
+    {
+      "resourceType": "dynatrace_alerting",
+      "family": "alerting",
+      "displayName": "Alerting Profile",
+      "summary": "Severity-rule set that gates which problems trigger notifications. Almost always scoped to a management zone via the management_zone attribute.",
+      "commonVariables": [
+        { "name": "profile_name",       "type": "string", "description": "Display name for the alerting profile." },
+        { "name": "management_zone_id", "type": "string", "description": "ID of the management zone this profile is scoped to (use a resource attribute reference, not a literal MZ-id)." }
+      ]
+    },
+    {
+      "resourceType": "dynatrace_slo_v2",
+      "family": "alerting",
+      "displayName": "Service Level Objective (v2)",
+      "summary": "Settings 2.0 SLO. evaluation_type is AGGREGATE or EVENT_BASED with different required fields per type. The warning threshold MUST be less strict than the target (lower percentage) so warnings fire before the SLO breaches.",
+      "commonVariables": [
+        { "name": "slo_name",           "type": "string", "description": "Display name for the SLO." },
+        { "name": "target_pct",         "type": "number", "description": "Target percentage (0-100). Validation lives in the consuming variables.tf." },
+        { "name": "warning_pct",        "type": "number", "description": "Warning percentage (0-100). MUST be lower than target_pct." },
+        { "name": "management_zone_id", "type": "string", "description": "ID of the management zone the SLO filters on." }
+      ]
+    },
+    {
+      "resourceType": "dynatrace_notification",
+      "family": "alerting",
+      "displayName": "Problem Notification",
+      "summary": "Routes problems matching an alerting profile to email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters. The per-channel payload lives in nested blocks (email {} / slack {} / etc.); generate the schema or read the provider docs before authoring.",
+      "commonVariables": [
+        { "name": "notification_name", "type": "string", "description": "Display name for the notification." },
+        { "name": "alerting_profile_id","type": "string", "description": "ID of the alerting profile this notification fires against." },
+        { "name": "recipient_email",   "type": "string", "description": "Email recipient (used by the email {} nested block; remove if the channel is not email)." }
+      ]
+    },
+    {
+      "resourceType": "dynatrace_dashboard",
+      "family": "visualization",
+      "displayName": "Dashboard",
+      "summary": "Dynatrace dashboard payload. Templates tend to be large -- prefer storing the bulk as a JSON file referenced via file() rather than inlining megabytes of HCL.",
+      "commonVariables": [
+        { "name": "dashboard_name", "type": "string", "description": "Display name shown in the Dynatrace UI." },
+        { "name": "owner",          "type": "string", "description": "Owner email or service-account identifier." }
+      ]
+    }
+  ]
+}

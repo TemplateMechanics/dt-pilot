@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Repository meta surface: `README`, `LICENSE` (MIT), tuned `.gitignore`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, GitHub PR template, and `docs/BRANCH-WORKFLOW.md` codifying the never-commit-to-main + squash-only merge policy.
+- Terraform backend ([Design 003](docs/design/TERRAFORM-BACKEND.md)). Adds the second backend behind the multi-backend skeleton from Design 001. Cherry-picks wrapper shapes from [tf-pilot](https://github.com/TemplateMechanics/tf-pilot) and adapts them to dt-pilot's `dt-pilot.tfplan/v1` envelope.
+  - `skills/terraform/SKILL.md` + `agents/terraform.agent.md` — defers to `skills/iac/SKILL.md` for the cross-cutting contract; covers `dynatrace-oss/dynatrace` provider specifics.
+  - `scripts/terraform/` — `_Common.ps1` (executable resolution, canonical->provider env-var translation, workspace hash, plan-envelope read/write) plus 7 wrappers: `Get-TerraformVersion`, `Initialize-TerraformWorkspace`, `Validate-Terraform`, `Invoke-TerraformPlan`, `Invoke-TerraformApply`, `Invoke-TerraformDestroy`, `Sync-TerraformCatalog`. Apply enforces 5 checks: schema match, environment match, workspace-content hash, freshness (default 30 min), binary plan still on disk.
+  - `config/catalog/terraform.json` (+ `terraform.schema.json`) — reflected catalog of 6 `dynatrace_*` resource types (`dynatrace_management_zone_v2`, `dynatrace_autotag_v2`, `dynatrace_alerting`, `dynatrace_slo_v2`, `dynatrace_notification`, `dynatrace_dashboard`). Registered as the second backend in `config/catalog/backends.json`.
+  - `modules/terraform/configs/<family>/<resource>/` — generated scaffolds (3 files per entry: `SCAFFOLD.md`, `main.tf.example`, `variables.tf.example`), byte-deterministic across PS editions, gated by `Sync-TerraformCatalog.ps1 -Check` in the pre-commit gate.
+  - `examples/terraform-baseline/` — working stack mirroring `examples/baseline-stack/`: management zone, alerting profile, SLO, email notification; per-env `.tfvars` + per-developer `.local.tfvars` (gitignored).
+  - `.vscode/mcp.json` + catalog — disabled `terraform` MCP server entry (HashiCorp's `terraform-mcp-server` via Docker); toggle on via `Set-McpServerState.ps1 -Server terraform -Enable` when actively authoring `.tf`.
+  - `scripts/Test-McpConfigSecrets.ps1` extended to scan committed `.tf` files for token literals, live tenant URLs, bearer-in-URL, and inline provider arguments (`url`/`api_token`/`client_id`/`client_secret`/`account_id` set to a string literal rather than a `var.`/`local.`/`data.` reference).
+  - `docs/TERRAFORM-DYNATRACE-INTEGRATION.md` — when to pick Terraform vs Monaco, coexistence patterns, remote-state guidance, recommended CI workflow shape, migration playbook.
+  - `docs/AUTHENTICATION.md` — extended with the canonical -> Terraform-provider env-var mapping table.
+  - `.gitignore` — `.terraform/`, `terraform.tfstate*`, `*.tfplan`, `envs/*.local.tfvars`.
+
 - Scheduled catalog refresh ([Design 002](docs/design/SCHEDULED-CATALOG-REFRESH.md)):
   - `config/catalog/schemas.txt` is the curated inputs list of Dynatrace settings 2.0 schema IDs that dt-pilot reflects. Adding a row is the cheapest way to extend catalog coverage.
   - `scripts/monaco/Sync-CatalogFromSchemas.ps1` reads `schemas.txt`, calls `monaco generate schema` per ID, refreshes `summary` + new informational `liveFields`, and preserves the curated `family` + `commonParameters`. Byte-deterministic output across PS 5.1 / 7. Supports `-WhatIf` for safe local inspection and `-FetchSchemaScript` for test stubbing.

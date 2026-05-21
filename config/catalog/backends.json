@@ -21,6 +21,22 @@
           "match": "monaco-manifest"
         }
       ]
+    },
+    {
+      "id": "terraform",
+      "displayName": "Dynatrace via Terraform (dynatrace-oss/dynatrace provider)",
+      "skill": "skills/terraform/SKILL.md",
+      "agentPersona": "agents/terraform.agent.md",
+      "scriptsDir": "scripts/terraform",
+      "catalogFile": "config/catalog/terraform.json",
+      "catalogSyncScript": "scripts/terraform/Sync-TerraformCatalog.ps1",
+      "modulesDir": "modules/terraform/configs",
+      "detect": [
+        {
+          "type": "file-extension-present",
+          "extension": ".tf"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,11 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Problem Notification (dynatrace_notification).
+# Copy this file to your project's main.tf (or merge in) and fill the TODO markers.
+
+resource "dynatrace_notification" "TODO_local_name" {
+  notification_name = var.notification_name  # TODO: confirm provider arg name matches
+  alerting_profile_id = var.alerting_profile_id  # TODO: confirm provider arg name matches
+  recipient_email = var.recipient_email  # TODO: confirm provider arg name matches
+  # TODO: add the resource-specific blocks from the provider docs.
+}

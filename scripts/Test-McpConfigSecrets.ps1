@@ -1,35 +1,46 @@
 <#
 .SYNOPSIS
-    Scan committed (or staged) MCP configuration files for hardcoded
-    secrets and live tenant URLs. The pre-commit gate calls this script
-    with -StagedOnly to block accidental token commits.
+    Scan committed (or staged) MCP configuration files AND Terraform
+    .tf files for hardcoded secrets and live tenant URLs. The pre-commit
+    gate calls this script with -StagedOnly to block accidental commits.
 
 .DESCRIPTION
-    Parses each target file as JSON and inspects the load-bearing fields
-    (every 'value' under 'env:' blocks and every 'value' under 'inputs[]'
-    entries -- i.e. the spots that actually get sent to the MCP client at
-    launch time). 'description' fields and other free-text are NOT
-    scanned, so realistic-looking example URLs in input prompts don't
-    trip the scanner.
+    Two scan paths:
 
-    Patterns detected:
+    1. **MCP configs** (.vscode/mcp.json and any *.mcp.json). Parsed as
+       JSON; only the load-bearing fields are scanned (every 'value'
+       under 'env:' blocks and every 'value' under 'inputs[]' entries).
+       'description' fields and other free-text are NOT scanned, so
+       realistic example URLs in prompts don't trip the scanner.
+
+    2. **Terraform .tf files** (anywhere in the repo). Line-by-line
+       regex scan. The convention is that the dynatrace provider
+       reads every credential from env vars at runtime, so the scanner
+       flags any inline credential argument (url, api_token, client_id,
+       client_secret, account_id) whose value is a string literal
+       rather than a var./local./data. reference.
+
+    Patterns detected in BOTH file types:
         - Dynatrace token literals (any dt0XX. prefix family)
         - Live tenant URLs (*.live.dynatrace.com, *.apps.dynatrace.com,
           *.dynatracelabs.com)
         - Bearer tokens embedded in URLs (https://user:token@...)
 
-    OAuth client-secret detection by string-shape is not attempted: secrets
-    are entropy-shaped and string-shape heuristics produce too many false
-    positives. The repo convention is that secrets never appear as inline
-    values anyway -- they come from env-var references -- and the live tenant
-    URL + token literal checks are sufficient to enforce that convention.
+    OAuth client-secret detection by string-shape is not attempted:
+    secrets are entropy-shaped and string-shape heuristics produce too
+    many false positives. The repo convention is that secrets never
+    appear as inline values anyway -- they come from env-var references
+    -- and the live tenant URL + token literal + inline-provider-arg
+    checks are sufficient to enforce that convention.
 
     Per-developer secrets belong in .vscode/mcp.session.json (gitignored)
-    or in environment variables that mcp.json references by name.
+    or in environment variables that mcp.json / the Terraform provider
+    references by name.
 
 .PARAMETER StagedOnly
     Scan only files currently staged for commit (git diff --cached).
-    Default scans every tracked *.mcp.json under .vscode/.
+    Default scans every tracked *.mcp.json under .vscode/ AND every
+    tracked *.tf in the repo.
 
 .EXAMPLE
     ./scripts/Test-McpConfigSecrets.ps1
@@ -48,7 +59,8 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
-$targets = @()
+$mcpTargets = @()
+$tfTargets  = @()
 if ($StagedOnly) {
     Push-Location $repoRoot
     try {
@@ -59,22 +71,31 @@ if ($StagedOnly) {
     if (-not $staged) { Write-Host "No staged files; nothing to scan." -ForegroundColor DarkGray; exit 0 }
     foreach ($f in $staged) {
         $full = Join-Path $repoRoot $f
-        if ($f -match '\.vscode[\\/](mcp|.*\.mcp)\.json$' -and (Test-Path -LiteralPath $full)) {
-            $targets += $full
-        }
+        if (-not (Test-Path -LiteralPath $full)) { continue }
+        if ($f -match '\.vscode[\\/](mcp|.*\.mcp)\.json$') { $mcpTargets += $full; continue }
+        if ($f -match '\.tf$')                              { $tfTargets  += $full; continue }
     }
 } else {
-    $targets += Get-ChildItem -LiteralPath (Join-Path $repoRoot '.vscode') -Filter '*.mcp.json' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+    $mcpTargets += Get-ChildItem -LiteralPath (Join-Path $repoRoot '.vscode') -Filter '*.mcp.json' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
     $main = Join-Path $repoRoot '.vscode/mcp.json'
-    if (Test-Path -LiteralPath $main) { $targets += $main }
+    if (Test-Path -LiteralPath $main) { $mcpTargets += $main }
     # Never scan the gitignored session file.
-    # Wrap in @(...) to keep $targets as an array even when Where-Object
+    # Wrap in @(...) to keep $mcpTargets as an array even when Where-Object
     # reduces to zero or one element under strict mode.
-    $targets = @($targets | Where-Object { $_ -notmatch 'mcp\.session(\..*)?\.json$' })
+    $mcpTargets = @($mcpTargets | Where-Object { $_ -notmatch 'mcp\.session(\..*)?\.json$' })
+
+    # All committed .tf files. Use Get-ChildItem -Recurse with explicit
+    # exclusions for paths that aren't real source (.terraform/ provider
+    # cache; downloaded/ snapshots).
+    $tfTargets = @(Get-ChildItem -LiteralPath $repoRoot -Filter '*.tf' -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/](\.terraform|downloaded)[\\/]' } |
+        ForEach-Object { $_.FullName })
 }
 
-if (-not $targets -or @($targets).Count -eq 0) {
-    Write-Host "No MCP config files to scan." -ForegroundColor DarkGray
+if (-not $mcpTargets) { $mcpTargets = @() }
+if (-not $tfTargets)  { $tfTargets  = @() }
+if (@($mcpTargets).Count -eq 0 -and @($tfTargets).Count -eq 0) {
+    Write-Host "No MCP configs or .tf files to scan." -ForegroundColor DarkGray
     exit 0
 }
 
@@ -111,7 +132,7 @@ function Test-StringForSecrets {
     return $hits
 }
 
-foreach ($file in $targets) {
+foreach ($file in $mcpTargets) {
     try {
         $json = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
     } catch {
@@ -154,14 +175,45 @@ foreach ($file in $targets) {
     }
 }
 
+# .tf scan: line-by-line regex check for the three general patterns
+# (token literal, live tenant URL, bearer-in-URL) plus the Terraform-
+# specific inline-provider-argument heuristic. A line like
+# `url = "https://..."`, `api_token = "..."`, `client_id = "..."`,
+# `client_secret = "..."`, or `account_id = "..."` whose right-hand
+# side is a string literal (not a var./local./data. reference) is
+# flagged regardless of what HCL block it's inside -- the dynatrace
+# provider in dt-pilot reads every credential from env vars, so a
+# committed inline value is always a smell.
+$tfArgRegex = '^\s*(url|api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
+foreach ($file in $tfTargets) {
+    $lines = Get-Content -LiteralPath $file
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        $loc  = "line $($i + 1)"
+        $hits = Test-StringForSecrets -Value $line -File $file -Location $loc
+        foreach ($h in $hits) { $findings.Add($h) }
+        if ($line -match $tfArgRegex) {
+            $argName = $Matches[1]
+            $argVal  = $Matches[2]
+            # Allow ${var.x}, ${local.x}, ${data.x.y}, ${module.x.y}
+            # interpolations -- those resolve to runtime values, not
+            # committed secrets.
+            if ($argVal -notmatch '^\$\{(var|local|data|module)\.') {
+                $findings.Add(("{0}  ({1}): provider argument '{2}' set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $loc, $argName))
+            }
+        }
+    }
+}
+
 if ($findings.Count -gt 0) {
-    Write-Host "MCP secret-hygiene scan FAILED:" -ForegroundColor Red
+    Write-Host "Secret-hygiene scan FAILED:" -ForegroundColor Red
     foreach ($f in $findings) { Write-Host "  - $f" -ForegroundColor Red }
     Write-Host ""
-    Write-Host "Per-developer secrets belong in .vscode/mcp.session.json (gitignored) or in environment variables that mcp.json references by name." -ForegroundColor Yellow
+    Write-Host "Per-developer secrets belong in .vscode/mcp.session.json (gitignored) or in environment variables that mcp.json / the Terraform provider references by name." -ForegroundColor Yellow
     exit 1
 }
 
-$count = @($targets).Count   # coerce -- strict mode rejects .Count on a scalar
-Write-Host "MCP secret-hygiene scan passed for $count file(s)." -ForegroundColor Green
+$mcpCount = @($mcpTargets).Count   # coerce -- strict mode rejects .Count on a scalar
+$tfCount  = @($tfTargets).Count
+Write-Host "Secret-hygiene scan passed: $mcpCount MCP config file(s) + $tfCount .tf file(s)." -ForegroundColor Green
 exit 0

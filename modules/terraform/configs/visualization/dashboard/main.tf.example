@@ -1,0 +1,10 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Dashboard (dynatrace_dashboard).
+# Copy this file to your project's main.tf (or merge in) and fill the TODO markers.
+
+resource "dynatrace_dashboard" "TODO_local_name" {
+  dashboard_name = var.dashboard_name  # TODO: confirm provider arg name matches
+  owner = var.owner  # TODO: confirm provider arg name matches
+  # TODO: add the resource-specific blocks from the provider docs.
+}
