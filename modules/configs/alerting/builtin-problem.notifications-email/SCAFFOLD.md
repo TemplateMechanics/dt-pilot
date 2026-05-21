@@ -1,6 +1,6 @@
-﻿<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
+<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
 <!-- SPDX-License-Identifier: MIT -->
-# Scaffold: Problem Notification â€” Email
+# Scaffold: Problem Notification — Email
 
 **Schema ID:** `builtin:problem.notifications/email`
 **Family:** alerting

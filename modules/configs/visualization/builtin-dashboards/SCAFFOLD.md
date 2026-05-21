@@ -1,4 +1,4 @@
-﻿<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
+<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
 <!-- SPDX-License-Identifier: MIT -->
 # Scaffold: Dashboard
 
@@ -8,7 +8,7 @@
 
 ## Summary
 
-Dashboard payload (tiles, layouts, filters). Templates tend to be large â€” keep parameters narrow and store the bulk in the JSON.
+Dashboard payload (tiles, layouts, filters). Templates tend to be large — keep parameters narrow and store the bulk in the JSON.
 
 ## How to adopt
 

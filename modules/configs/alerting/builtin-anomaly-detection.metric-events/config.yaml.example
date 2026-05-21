@@ -1,4 +1,4 @@
-﻿# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
 # SPDX-License-Identifier: MIT
 # Scaffold for Metric-Event Anomaly Detection (builtin:anomaly-detection.metric-events).
 # Copy this file to projects/<your-project>/builtin-anomaly-detection.metric-events/config.yaml and fill in the TODO values.

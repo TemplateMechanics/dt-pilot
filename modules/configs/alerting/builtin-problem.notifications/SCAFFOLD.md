@@ -1,4 +1,4 @@
-﻿<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
+<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
 <!-- SPDX-License-Identifier: MIT -->
 # Scaffold: Problem Notification
 
@@ -8,7 +8,7 @@
 
 ## Summary
 
-Email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters routing for problems matching an alerting profile. The per-type payload shape differs significantly â€” generate the schema with Invoke-MonacoGenerate before authoring.
+Email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters routing for problems matching an alerting profile. The per-type payload shape differs significantly; generate the schema with Invoke-MonacoGenerate before authoring.
 
 ## How to adopt
 

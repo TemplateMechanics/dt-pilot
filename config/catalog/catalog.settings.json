@@ -32,7 +32,7 @@
       "family": "alerting",
       "displayName": "Problem Notification",
       "scope": "environment",
-      "summary": "Email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters routing for problems matching an alerting profile. The per-type payload shape differs significantly — generate the schema with Invoke-MonacoGenerate before authoring.",
+      "summary": "Email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters routing for problems matching an alerting profile. The per-type payload shape differs significantly; generate the schema with Invoke-MonacoGenerate before authoring.",
       "commonParameters": [ "notificationName", "alertingProfileId" ]
     },
     {

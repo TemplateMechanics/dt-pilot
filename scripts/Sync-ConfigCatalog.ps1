@@ -38,6 +38,10 @@ param(
     [switch] $Check
 )
 
+# Script uses only PS 5.1-compatible features plus .NET BCL calls for
+# byte-correct UTF-8 NoBOM I/O. Runs identically on Windows PowerShell 5.1
+# and PowerShell 7+; CI uses pwsh 7+.
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -49,7 +53,21 @@ if (-not (Test-Path -LiteralPath $catalogPath)) {
     throw "Catalog not found: $catalogPath"
 }
 
-$catalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
+# UTF-8 NoBOM for every file we write. Using [System.IO.File]::WriteAllText
+# with an explicit UTF8Encoding($false) produces byte-identical output
+# across PowerShell editions; Set-Content -Encoding utf8 disagrees between
+# 5.1 (BOM) and 7+ (no BOM), which would silently break the -Check gate.
+$script:Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+
+function Write-Utf8NoBom {
+    param([string] $Path, [string] $Content)
+    [System.IO.File]::WriteAllText($Path, $Content, $script:Utf8NoBom)
+}
+
+# Read the catalog as UTF-8 explicitly so non-ASCII content cannot be
+# corrupted by ANSI default decoding under a non-pwsh interpreter.
+$catalogRaw = [System.IO.File]::ReadAllText($catalogPath, $script:Utf8NoBom)
+$catalog = $catalogRaw | ConvertFrom-Json
 
 function ConvertTo-SafeName {
     param([string] $Id)
@@ -145,9 +163,9 @@ function New-ScaffoldFiles {
     if (-not (Test-Path -LiteralPath $TargetDir)) {
         $null = New-Item -ItemType Directory -Path $TargetDir -Force
     }
-    Set-Content -LiteralPath (Join-Path $TargetDir 'SCAFFOLD.md') -Value ($scaffoldMd -join "`n") -Encoding utf8 -NoNewline:$false
-    Set-Content -LiteralPath (Join-Path $TargetDir 'config.yaml.example') -Value ($configYaml -join "`n") -Encoding utf8 -NoNewline:$false
-    $jsonObj | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $TargetDir 'template.json.example') -Encoding utf8
+    Write-Utf8NoBom (Join-Path $TargetDir 'SCAFFOLD.md')            (($scaffoldMd -join "`n") + "`n")
+    Write-Utf8NoBom (Join-Path $TargetDir 'config.yaml.example')    (($configYaml  -join "`n") + "`n")
+    Write-Utf8NoBom (Join-Path $TargetDir 'template.json.example')  ((($jsonObj | ConvertTo-Json -Depth 4)) + "`n")
 }
 
 # Pick an output root: live modules root, or a temp shadow for -Check.
@@ -155,6 +173,16 @@ if ($Check) {
     $outRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-catalog-check-" + [System.Guid]::NewGuid().ToString('N'))
     $null = New-Item -ItemType Directory -Path $outRoot -Force
 } else {
+    # Wipe-and-regenerate makes the script idempotent and self-healing:
+    # removing a catalog entry now also removes its scaffold instead of
+    # leaving an orphan that -Check would flag on the next run.
+    # modules/configs/ is fully owned by this script, so a recursive
+    # wipe of the entries inside it is safe.
+    if (Test-Path -LiteralPath $modulesRoot -PathType Container) {
+        Get-ChildItem -LiteralPath $modulesRoot -Force | Remove-Item -Recurse -Force
+    } else {
+        $null = New-Item -ItemType Directory -Path $modulesRoot -Force
+    }
     $outRoot = $modulesRoot
 }
 
