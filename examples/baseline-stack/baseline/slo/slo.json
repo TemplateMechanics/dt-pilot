@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "{{ .sloName }}",
+  "description": "Service availability SLO for the baseline-services management zone.",
+  "metricExpression": "(100)*(builtin:service.errors.successCount:splitBy())/(builtin:service.requestCount.total:splitBy())",
+  "evaluationType": "AGGREGATE",
+  "filter": "type(\"SERVICE\"),mzId({{ .managementZoneId }})",
+  "target": {{ .targetPct }},
+  "warning": {{ .warningPct }},
+  "timeframe": "-1h",
+  "errorBudgetBurnRate": {
+    "burnRateVisualizationEnabled": true,
+    "fastBurnThreshold": 1.5
+  }
+}

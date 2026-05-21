@@ -1,0 +1,27 @@
+{
+  "name": "{{ .zoneName }}",
+  "rules": [
+    {
+      "enabled": true,
+      "type": "ME",
+      "attributeRule": {
+        "entityType": "SERVICE",
+        "conditions": [
+          {
+            "key": "SERVICE_TOPOLOGY",
+            "operator": "EQUALS",
+            "enumValue": "FULLY_MONITORED"
+          },
+          {
+            "key": "SERVICE_TAGS",
+            "operator": "EQUALS",
+            "stringValue": "owner:dt-pilot-baseline",
+            "caseSensitive": false
+          }
+        ],
+        "serviceToHostPropagation": true,
+        "serviceToPGPropagation": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+configs:
+  - id: baseline-availability-slo
+    type:
+      settings:
+        schema: builtin:slo
+        scope: environment
+    config:
+      name: baseline-availability-slo
+      template: slo.json
+      parameters:
+        sloName:
+          type: value
+          value: dt-pilot-baseline-availability
+        targetPct:
+          type: value
+          value: 99.5
+        # Warning must be LOWER than target so the warning fires before
+        # the SLO actually breaches the target.
+        warningPct:
+          type: value
+          value: 99.0
+        managementZoneId: [ builtin:management-zones, baseline-services, id ]

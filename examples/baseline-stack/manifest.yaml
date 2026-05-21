@@ -1,0 +1,50 @@
+manifestVersion: 1.0
+
+# Baseline stack — a minimal but complete Monaco project demonstrating
+# the four most common settings 2.0 schemas wired together via reference
+# parameters:
+#   management zone  <-  alerting profile  <-  notification config
+#                    \-  SLO
+#
+# All environment URLs and tokens come from environment variables — no
+# tenant identifiers or secrets in this file.
+
+projects:
+  - name: baseline
+
+environmentGroups:
+  - name: non-prod
+    environments:
+      - name: dev
+        url:
+          type: environment
+          value: DT_ENVIRONMENT_DEV
+        auth:
+          # Platform token (settings 2.0): Monaco distinguishes
+          # auth.platformToken from auth.token (the latter is the
+          # classic config API token). The env var name reflects which
+          # one the token actually is.
+          platformToken:
+            name: DT_PLATFORM_TOKEN_DEV
+      - name: staging
+        url:
+          type: environment
+          value: DT_ENVIRONMENT_STAGING
+        auth:
+          oAuth:
+            clientId:
+              name: OAUTH_CLIENT_ID_STAGING
+            clientSecret:
+              name: OAUTH_CLIENT_SECRET_STAGING
+  - name: prod
+    environments:
+      - name: prod
+        url:
+          type: environment
+          value: DT_ENVIRONMENT_PROD
+        auth:
+          oAuth:
+            clientId:
+              name: OAUTH_CLIENT_ID_PROD
+            clientSecret:
+              name: OAUTH_CLIENT_SECRET_PROD

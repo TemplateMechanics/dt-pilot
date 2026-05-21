@@ -1,0 +1,37 @@
+{
+  "name": "{{ .profileName }}",
+  "managementZone": "{{ .managementZoneId }}",
+  "severityRules": [
+    {
+      "severityLevel": "AVAILABILITY",
+      "delayInMinutes": 0,
+      "tagFilterIncludeMode": "NONE"
+    },
+    {
+      "severityLevel": "ERROR",
+      "delayInMinutes": 0,
+      "tagFilterIncludeMode": "NONE"
+    },
+    {
+      "severityLevel": "PERFORMANCE",
+      "delayInMinutes": 5,
+      "tagFilterIncludeMode": "NONE"
+    },
+    {
+      "severityLevel": "RESOURCE_CONTENTION",
+      "delayInMinutes": 5,
+      "tagFilterIncludeMode": "NONE"
+    },
+    {
+      "severityLevel": "CUSTOM_ALERT",
+      "delayInMinutes": 0,
+      "tagFilterIncludeMode": "NONE"
+    },
+    {
+      "severityLevel": "MONITORING_UNAVAILABLE",
+      "delayInMinutes": 10,
+      "tagFilterIncludeMode": "NONE"
+    }
+  ],
+  "eventFilters": []
+}
