@@ -1,0 +1,20 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Alerting Profile (builtin:alerting.profile).
+# Copy this file to projects/<your-project>/builtin-alerting.profile/config.yaml and fill in the TODO values.
+configs:
+  - id: TODO-config-id
+    type:
+      settings:
+        schema: builtin:alerting.profile
+        scope: environment
+    config:
+      name: TODO-display-name
+      template: template.json
+      parameters:
+        profileName:
+          type: value
+          value: TODO-profileName
+        managementZoneId:
+          type: value
+          value: TODO-managementZoneId

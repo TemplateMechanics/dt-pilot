@@ -1,0 +1,26 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Service Level Objective (builtin:slo).
+# Copy this file to projects/<your-project>/builtin-slo/config.yaml and fill in the TODO values.
+configs:
+  - id: TODO-config-id
+    type:
+      settings:
+        schema: builtin:slo
+        scope: environment
+    config:
+      name: TODO-display-name
+      template: template.json
+      parameters:
+        sloName:
+          type: value
+          value: TODO-sloName
+        targetPct:
+          type: value
+          value: TODO-targetPct
+        warningPct:
+          type: value
+          value: TODO-warningPct
+        managementZoneId:
+          type: value
+          value: TODO-managementZoneId

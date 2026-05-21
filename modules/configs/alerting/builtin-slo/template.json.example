@@ -1,0 +1,7 @@
+{
+  "_comment": "GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1. Replace this with the real Dynatrace payload; run monaco generate schema for the authoritative shape.",
+  "sloName": "{{ .sloName }}",
+  "targetPct": "{{ .targetPct }}",
+  "warningPct": "{{ .warningPct }}",
+  "managementZoneId": "{{ .managementZoneId }}"
+}

@@ -11,7 +11,9 @@
         1. Manifest schema check on every example/* project.
         2. MCP secret-hygiene scan (-StagedOnly by default; -All scans
            every tracked MCP config).
-        3. Pester suite (./tests/Harness.Tests.ps1) — fast, doesn't
+        3. Reflected config catalog sync check
+           (./scripts/Sync-ConfigCatalog.ps1 -Check).
+        4. Pester suite (./tests/Harness.Tests.ps1) -- fast, doesn't
            require Monaco or a live Dynatrace tenant.
 
     Repo-wide gate; intentionally takes no -Path parameter.
@@ -87,7 +89,20 @@ try {
     $failed = $true
 }
 
-# 3. Pester suite.
+# 3. Reflected config catalog sync check.
+Section "Reflected config catalog (Sync-ConfigCatalog -Check)"
+try {
+    & (Join-Path $PSScriptRoot 'Sync-ConfigCatalog.ps1') -Check
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
+        $failed = $true
+    }
+} catch {
+    Write-Host "  FAILED: $_" -ForegroundColor Red
+    $failed = $true
+}
+
+# 4. Pester suite.
 if (-not $SkipTests) {
     Section "Pester tests"
     $testsPath = Join-Path $repoRoot 'tests/Harness.Tests.ps1'

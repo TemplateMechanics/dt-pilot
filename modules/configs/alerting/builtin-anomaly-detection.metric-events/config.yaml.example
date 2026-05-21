@@ -1,0 +1,23 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Metric-Event Anomaly Detection (builtin:anomaly-detection.metric-events).
+# Copy this file to projects/<your-project>/builtin-anomaly-detection.metric-events/config.yaml and fill in the TODO values.
+configs:
+  - id: TODO-config-id
+    type:
+      settings:
+        schema: builtin:anomaly-detection.metric-events
+        scope: environment
+    config:
+      name: TODO-display-name
+      template: template.json
+      parameters:
+        eventName:
+          type: value
+          value: TODO-eventName
+        metricSelector:
+          type: value
+          value: TODO-metricSelector
+        threshold:
+          type: value
+          value: TODO-threshold
