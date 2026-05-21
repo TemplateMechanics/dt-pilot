@@ -92,7 +92,7 @@ User request
 | You normally have to | dt-pilot does for you |
 |---|---|
 | Memorize Dynatrace settings schema IDs | MCP + reflected config catalog provide schema discovery |
-| Remember every Monaco command + flag | `./scripts/monaco/Invoke-Monaco*.ps1` wraps the lifecycle (legacy `./scripts/Invoke-Monaco*.ps1` paths are backwards-compatibility shims) |
+| Remember every Monaco command + flag | `./scripts/monaco/Invoke-Monaco*.ps1` wraps the lifecycle |
 | Risk direct `monaco deploy` behavior | `Invoke-MonacoDeploy.ps1` requires a saved dry-run file |
 | Risk direct `monaco delete` behavior | `Invoke-MonacoDelete.ps1` requires a deletefile + `-Confirm` |
 | Catch manifest errors late | `.vscode/schemas/monaco-manifest.schema.json` + `Test-MonacoManifest.ps1` catch issues early |
