@@ -149,15 +149,26 @@ function New-ScaffoldFiles {
         }
     }
 
-    # template.json.example
-    $jsonObj = [ordered]@{}
-    $jsonObj['_comment'] = "GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1. Replace this with the real Dynatrace payload; run monaco generate schema for the authoritative shape."
-    foreach ($p in $params) {
-        $jsonObj[$p] = "{{ .$p }}"
+    # template.json.example — hand-formatted instead of ConvertTo-Json
+    # because PS 5.1 and PS 7 disagree on both indentation (4 vs 2 spaces)
+    # and line endings (CRLF vs LF), which would break -Check across hosts.
+    $jsonLines = New-Object System.Collections.Generic.List[string]
+    $jsonLines.Add('{')
+    $jsonEntries = New-Object System.Collections.Generic.List[string]
+    $jsonEntries.Add('  "_comment": "GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1. Replace this with the real Dynatrace payload; run monaco generate schema for the authoritative shape."')
+    if ($params.Count -gt 0) {
+        foreach ($p in $params) {
+            $jsonEntries.Add(('  "{0}": "{{{{ .{0} }}}}"' -f $p))
+        }
+    } else {
+        $jsonEntries.Add('  "placeholder": "{{ .TODO }}"')
     }
-    if ($params.Count -eq 0) {
-        $jsonObj['placeholder'] = "{{ .TODO }}"
+    for ($k = 0; $k -lt $jsonEntries.Count; $k++) {
+        $suffix = if ($k -lt ($jsonEntries.Count - 1)) { ',' } else { '' }
+        $jsonLines.Add($jsonEntries[$k] + $suffix)
     }
+    $jsonLines.Add('}')
+    $jsonText = ($jsonLines -join "`n") + "`n"
 
     # Write files.
     if (-not (Test-Path -LiteralPath $TargetDir)) {
@@ -165,7 +176,7 @@ function New-ScaffoldFiles {
     }
     Write-Utf8NoBom (Join-Path $TargetDir 'SCAFFOLD.md')            (($scaffoldMd -join "`n") + "`n")
     Write-Utf8NoBom (Join-Path $TargetDir 'config.yaml.example')    (($configYaml  -join "`n") + "`n")
-    Write-Utf8NoBom (Join-Path $TargetDir 'template.json.example')  ((($jsonObj | ConvertTo-Json -Depth 4)) + "`n")
+    Write-Utf8NoBom (Join-Path $TargetDir 'template.json.example')  $jsonText
 }
 
 # Pick an output root: live modules root, or a temp shadow for -Check.

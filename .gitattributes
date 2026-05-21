@@ -1,0 +1,32 @@
+# dt-pilot uses LF line endings everywhere. This keeps the byte-exact
+# reflected-catalog sync check (`Sync-ConfigCatalog.ps1 -Check`)
+# deterministic across Windows / macOS / Linux developers, and keeps
+# Pester / Monaco / Node behavior consistent across platforms.
+
+* text=auto eol=lf
+
+# Generated reflected-catalog scaffolds: pin LF explicitly so
+# `core.autocrlf=true` on Windows checkouts can't round-trip them
+# to CRLF (which the byte-exact gate would then flag as drift).
+modules/configs/** text eol=lf
+
+# Shell + PowerShell scripts: LF, and never converted by Git smudge.
+*.sh    text eol=lf
+*.ps1   text eol=lf
+*.psm1  text eol=lf
+*.psd1  text eol=lf
+
+# YAML / JSON / Markdown — LF.
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+
+# Binary categories that must never be munged.
+*.png   binary
+*.jpg   binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
