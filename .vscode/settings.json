@@ -1,5 +1,9 @@
 {
-  "_comment": "dt-pilot workspace settings — YAML schema associations, formatter defaults, file exclusions. Per-developer overrides belong in your user settings, not here.",
+  // dt-pilot workspace settings — JSON schema associations, formatter
+  // defaults, file exclusions. Per-developer overrides belong in your
+  // user settings, not here. (settings.json supports JSONC: line and
+  // block comments are valid and don't appear as unknown keys in the
+  // VS Code Settings UI.)
   "files.encoding": "utf8",
   "files.eol": "\n",
   "files.insertFinalNewline": true,

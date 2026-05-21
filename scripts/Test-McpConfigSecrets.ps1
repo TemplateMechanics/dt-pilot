@@ -78,8 +78,14 @@ if (-not $targets) {
 
 $findings = New-Object System.Collections.Generic.List[string]
 
-# Dynatrace token prefixes (current as of mid-2026 — extend as new types ship).
-$tokenPrefixRegex = '\b(dt0[a-z0-9]{2,3}\.[A-Z0-9]{24}\.[A-Z0-9]{64})\b'
+# Dynatrace token literal. We MUST stay broad here — Dynatrace has
+# shipped multiple token shapes over the years and will ship more, and
+# the cost of a false negative (a real token leaked) outweighs the cost
+# of a false positive (a token-shaped placeholder flagged). Anything
+# starting with a 'dt0XX.' prefix and followed by enough characters to
+# look secret triggers the rule. Adjust the lower bound only if a
+# legitimate harmless string keeps tripping it.
+$tokenPrefixRegex = '\bdt0[a-zA-Z0-9]{1,4}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b'
 $tenantUrlRegex   = 'https?://[A-Za-z0-9.-]+\.(live\.dynatrace\.com|apps\.dynatrace\.com|dynatracelabs\.com)'
 $bearerInUrlRegex = 'https?://[^:@\s]+:[^@\s]+@'
 

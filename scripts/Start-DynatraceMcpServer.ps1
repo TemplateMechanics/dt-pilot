@@ -75,19 +75,33 @@ if (-not $McpVersion) {
 }
 
 $pkg = "@dynatrace-oss/dynatrace-mcp-server@$McpVersion"
-$args = @('-y', $pkg)
-if ($ExtraArgs) { $args += $ExtraArgs }
+$npxArgs = @('-y', $pkg)
+if ($ExtraArgs) { $npxArgs += $ExtraArgs }
 
 Write-Diag "Launching $pkg via $NpxExe"
 Write-Diag "DT_ENVIRONMENT=$($env:DT_ENVIRONMENT)"
 Write-Diag ("Auth mode: " + ($(if ($hasOAuth) { 'OAuth (client credentials)' } else { 'Platform token' })))
 
-# Exec via Process so the child inherits our stdio (stdin/stdout/stderr).
-# We don't redirect any stream — the MCP client owns this process's stdio.
+# On Windows, 'npx' is typically a .cmd shim that ProcessStartInfo with
+# UseShellExecute=false can't launch directly. Route through cmd.exe /c
+# in that case so stdio still inherits cleanly and the MCP framing isn't
+# disturbed. On Linux/macOS, npx is a real executable and we exec it
+# directly.
+$isBatch = $NpxExe -match '\.(cmd|bat)$'
+
 $psi = [System.Diagnostics.ProcessStartInfo]::new()
-$psi.FileName = $NpxExe
-foreach ($a in $args) { $null = $psi.ArgumentList.Add($a) }
+if ($isBatch) {
+    $psi.FileName = "$env:COMSPEC"
+    $null = $psi.ArgumentList.Add('/d')
+    $null = $psi.ArgumentList.Add('/c')
+    $null = $psi.ArgumentList.Add($NpxExe)
+    foreach ($a in $npxArgs) { $null = $psi.ArgumentList.Add($a) }
+} else {
+    $psi.FileName = $NpxExe
+    foreach ($a in $npxArgs) { $null = $psi.ArgumentList.Add($a) }
+}
 $psi.UseShellExecute = $false
+# Do not redirect any stream — the MCP client owns this process's stdio.
 $psi.RedirectStandardOutput = $false
 $psi.RedirectStandardError  = $false
 $psi.RedirectStandardInput  = $false

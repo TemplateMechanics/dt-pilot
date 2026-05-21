@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/mcp-servers-catalog.schema.json",
-  "_comment": "Authoritative list of MCP servers dt-pilot knows how to launch. Set-McpServerState.ps1 and New-McpSessionConfig.ps1 read this file. 'alwaysEnabled' servers cannot be disabled via chat-driven toggles. 'requiresEnv' lists environment variables the server needs at runtime — Test-DynatraceMcpReadiness.ps1 enforces these.",
+  "_comment": "Authoritative list of MCP servers dt-pilot knows how to launch. Set-McpServerState.ps1 and New-McpSessionConfig.ps1 read this file. 'alwaysEnabled' servers cannot be disabled via chat-driven toggles. 'requiresEnv' and 'acceptsOneOfEnv' document the environment variables each server needs at runtime; Test-DynatraceMcpReadiness.ps1 enforces a hardcoded subset for the 'dynatrace' server today, and broader catalog-driven enforcement is on the roadmap.",
   "version": "1.0",
   "servers": [
     {
