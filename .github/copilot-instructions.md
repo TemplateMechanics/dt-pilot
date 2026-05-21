@@ -6,8 +6,11 @@ This workspace is a Dynatrace configuration-as-code harness built on the **Monac
 
 ## Read Before Editing
 
-1. `skills/dynatrace/SKILL.md` — canonical Monaco + DQL reference *(planned, lands in PR&nbsp;3; the link will become live then)*.
-2. [`docs/BRANCH-WORKFLOW.md`](../docs/BRANCH-WORKFLOW.md) — branch naming + squash-merge policy + Copilot review loop.
+1. [`skills/iac/SKILL.md`](../skills/iac/SKILL.md) — the tool-agnostic harness contract (plan-as-artifact, apply gates, destroy gates, secret hygiene, MCP-first reads). Read this before any per-backend skill.
+2. [`skills/dynatrace/SKILL.md`](../skills/dynatrace/SKILL.md) — Monaco-specific reference.
+3. [`docs/BRANCH-WORKFLOW.md`](../docs/BRANCH-WORKFLOW.md) — branch naming + squash-merge policy + Copilot review loop.
+
+> **Wrapper script paths.** Monaco wrappers live under [`scripts/monaco/`](../scripts/monaco/) (e.g. `scripts/monaco/Invoke-MonacoDryRun.ps1`). Bare-name references like `Invoke-MonacoDryRun.ps1` in this file mean that file. Legacy `scripts/Invoke-Monaco*.ps1` paths are backwards-compatibility shims that emit a deprecation warning; use `scripts/monaco/*.ps1`. See [`CLAUDE.md`](../CLAUDE.md) Backend Routing for the full mapping and [`config/catalog/backends.json`](../config/catalog/backends.json) for the registry.
 
 ## Non-Negotiable Rules (mirror of `CLAUDE.md` "Key Rules")
 
@@ -16,7 +19,7 @@ This workspace is a Dynatrace configuration-as-code harness built on the **Monac
 - **`monaco deploy` requires a saved dry-run file.** Use `Invoke-MonacoDryRun.ps1` → present summary → wait for user approval → `Invoke-MonacoDeploy.ps1 -DryRunFile ...`.
 - **`monaco delete` requires both a curated deletefile and an explicit `-Confirm` flag.** Use `Invoke-MonacoGenerate.ps1 -Type deletefile` to produce the deletefile; review it; then `Invoke-MonacoDelete.ps1 -Confirm`.
 - **No secrets in committed files.** Auth lives in environment variables (`OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `DT_PLATFORM_TOKEN`, `DT_ENVIRONMENT`). MCP per-developer overrides live in `.vscode/mcp.session.json` (gitignored).
-- **Use the wrapper scripts in `scripts/`** (introduced in PR&nbsp;4) instead of typing `monaco` commands directly.
+- **Use the wrapper scripts in `scripts/monaco/`** instead of typing `monaco` commands directly. (Legacy `scripts/Invoke-Monaco*.ps1` paths are backwards-compatibility shims and still work, but new code should reference `scripts/monaco/*.ps1`.)
 - **Use the Dynatrace MCP server** (`@dynatrace-oss/dynatrace-mcp-server`, configured in PR&nbsp;5) for DQL generation/verification, entity lookup, problem/vulnerability discovery, and Davis Copilot — instead of guessing.
 - **Never hand-edit generated files** under `modules/configs/` (PR&nbsp;8). Regenerate via `Sync-ConfigCatalog.ps1`.
 

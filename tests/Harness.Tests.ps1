@@ -419,8 +419,14 @@ Describe 'Compatibility shims at scripts/ root' {
             $shim = Join-Path $script:ScriptDir $name
             $body = Get-Content -LiteralPath $shim -Raw
 
-            $body | Should -Match 'Console.*Error.*WriteLine|Write-Error' `
-                -Because "shim $name must emit its deprecation marker to stderr"
+            # Accept any common PS stderr emission shape: the .NET
+            # Console.Error API, Write-Error, or the `1>&2` redirection
+            # operator. (`2>&1` does the opposite -- it folds stderr
+            # into stdout -- so it is intentionally NOT accepted.)
+            # Source-text matching is permissive; runtime behavior is
+            # what matters.
+            $body | Should -Match '(?i)(Console.*Error.*WriteLine|Write-Error|1>&2)' `
+                -Because "shim $name must emit its deprecation marker to stderr by some means"
 
             $body | Should -Match ('\[deprecation\][^\n]*' + [regex]::Escape($name)) `
                 -Because "shim $name must name itself in the deprecation marker"

@@ -44,7 +44,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$failed   = $false
+# All failure tracking uses $script:failed (not bare $failed) so that the
+# helper functions below and the top-level loops all unambiguously write
+# to the same variable, regardless of whether the script is invoked
+# directly, dot-sourced, or run inside a tool that introduces extra
+# scopes around the top-level body.
+$script:failed = $false
 
 function Section($name) {
     Write-Host ""
@@ -86,7 +91,7 @@ foreach ($b in $backends) {
     $validator = Join-Path $repoRoot $b.manifestValidator
     if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) {
         Write-Host "  FAILED: $($b.id) manifestValidator missing at $validator" -ForegroundColor Red
-        $failed = $true
+        $script:failed = $true
         continue
     }
     # Resolve the glob via Get-ChildItem -Recurse. backends.json uses a
@@ -143,7 +148,7 @@ foreach ($b in $backends) {
     $sync = Join-Path $repoRoot $b.catalogSyncScript
     if (-not (Test-Path -LiteralPath $sync -PathType Leaf)) {
         Write-Host "  FAILED: $($b.id) catalogSyncScript missing at $sync" -ForegroundColor Red
-        $failed = $true
+        $script:failed = $true
         continue
     }
     Invoke-Step -Label "$($b.id) catalog -Check" -Block { & $sync -Check }
@@ -158,7 +163,7 @@ if (-not $SkipTests) {
     } else {
         if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge '5.0' } | Select-Object -First 1)) {
             Write-Host "  Pester 5+ is not installed. Install with: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force" -ForegroundColor Red
-            $failed = $true
+            $script:failed = $true
         } else {
             Import-Module Pester -MinimumVersion 5.0
             $config = New-PesterConfiguration
@@ -168,7 +173,7 @@ if (-not $SkipTests) {
             $config.Output.Verbosity = 'Detailed'
             $result = Invoke-Pester -Configuration $config
             if (-not $result -or $result.FailedCount -gt 0 -or $result.Result -ne 'Passed') {
-                $failed = $true
+                $script:failed = $true
             }
         }
     }
@@ -178,7 +183,7 @@ if (-not $SkipTests) {
 }
 
 Write-Host ""
-if ($failed) {
+if ($script:failed) {
     Write-Host "Pre-Commit gate FAILED." -ForegroundColor Red
     exit 1
 }
