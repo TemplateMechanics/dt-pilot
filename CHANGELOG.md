@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Repository meta surface: `README`, `LICENSE` (MIT), tuned `.gitignore`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, GitHub PR template, and `docs/BRANCH-WORKFLOW.md` codifying the never-commit-to-main + squash-only merge policy.
+- Scheduled catalog refresh ([Design 002](docs/design/SCHEDULED-CATALOG-REFRESH.md)):
+  - `config/catalog/schemas.txt` is the curated inputs list of Dynatrace settings 2.0 schema IDs that dt-pilot reflects. Adding a row is the cheapest way to extend catalog coverage.
+  - `scripts/monaco/Sync-CatalogFromSchemas.ps1` reads `schemas.txt`, calls `monaco generate schema` per ID, refreshes `summary` + new informational `liveFields`, and preserves the curated `family` + `commonParameters`. Byte-deterministic output across PS 5.1 / 7. Supports `-WhatIf` for safe local inspection and `-FetchSchemaScript` for test stubbing.
+  - `.github/workflows/catalog-refresh.yml` is the weekly cron (Mondays 06:17 UTC) and `workflow_dispatch` entry-point. Runs in a gated `catalog-refresh` GitHub Actions environment that carries `DT_ENVIRONMENT` + `DT_PLATFORM_TOKEN` (read-only `settings:schemas:read` scope is sufficient). If diff exists, opens an auto-PR with `@copilot` review requested. NEVER auto-merges. Exits cleanly when the gated environment is unconfigured so the initial workflow_dispatch is a safe smoke test.
+  - `config/catalog/schema.json` extended with an optional `liveFields` array (informational; refreshed by the cron, not consumed by `Sync-ConfigCatalog.ps1`).
+
 - Multi-backend skeleton ([Design 001](docs/design/MULTI-BACKEND-SKELETON.md)):
   - `skills/iac/SKILL.md` defines the tool-agnostic harness contract (plan-as-artifact, apply gates, destroy gates, secret hygiene, MCP-first reads, branch + PR discipline).
   - `config/catalog/backends.json` (+ `backends.schema.json`) is the authoritative registry of supported backends. Tooling iterates this rather than hard-coding Monaco paths.

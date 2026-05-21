@@ -52,6 +52,14 @@
             "type": "string",
             "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,62}$"
           }
+        },
+        "liveFields": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Informational list of top-level property names from the live Dynatrace JSON Schema for this settings type, refreshed by scripts/monaco/Sync-CatalogFromSchemas.ps1 on a weekly cron. Not consumed by Sync-ConfigCatalog.ps1; it's a hint for human reviewers picking commonParameters and for agents enumerating what an empty scaffold could grow into. Empty when the refresh job has never run against a real Dynatrace tenant.",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }
