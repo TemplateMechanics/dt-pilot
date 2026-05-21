@@ -16,7 +16,7 @@ Operational runbook for dt-pilot. Each entry is a symptom you can grep for, foll
 
 **Recovery:**
 
-- For an unintended config change, `monaco download` the current state, diff against the pre-deploy commit, prepare a revert PR through normal review.
+- For an unintended config change, run `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/<env>` to snapshot the current state, diff against the pre-deploy commit, and prepare a revert PR through normal review.
 - For an unintended delete, restore from the most recent download snapshot or from Dynatrace's per-config version history (settings 2.0 keeps revisions).
 - **Post-mortem must answer:** how did the deploy run without an unmodified, fresh, matching dry-run? `Invoke-MonacoDeploy.ps1` is the single chokepoint — the answer is either a bug in the wrapper (file a fix-forward issue) or a process bypass (file a process-control issue).
 

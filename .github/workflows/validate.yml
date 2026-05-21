@@ -46,7 +46,7 @@ jobs:
       # checksum by downloading the release's checksums.txt and copying
       # the line for monaco-linux-amd64. Never bump MONACO_VERSION without
       # also updating MONACO_SHA256.
-      MONACO_SHA256: ''
+      MONACO_SHA256: 'a16d98a5e6be8f6e2d1af5e6083505e02488b3edfb6ccd4a069bffd8bd3921f2'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
