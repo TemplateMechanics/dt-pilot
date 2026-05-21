@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Owner** | TBA |
 | **Last updated** | 2026-05-20 |
-| **Implementation PR** | in flight (`feat/multi-backend-skeleton`) |
+| **Implementation PR** | [#10](https://github.com/TemplateMechanics/dt-pilot/pull/10) |
 
 ## Problem
 

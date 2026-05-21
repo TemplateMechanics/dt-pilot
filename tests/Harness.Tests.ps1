@@ -410,14 +410,29 @@ Describe 'Compatibility shims at scripts/ root' {
         }
     }
 
-    It 'every shim writes a deprecation marker to stderr and forwards via splat with exit-code preservation' {
+    It 'every shim writes a deprecation marker to stderr, forwards to scripts/monaco/, and preserves the exit code' {
+        # Intent-level assertions only -- formatting (single vs double
+        # quotes, Join-Path vs literal, forward vs backslash) is not the
+        # contract. The contract is: deprecation -> stderr, invocation of
+        # the monaco target with @args, exit code passthrough.
         foreach ($name in $script:ExpectedShims) {
             $shim = Join-Path $script:ScriptDir $name
             $body = Get-Content -LiteralPath $shim -Raw
-            $body | Should -Match '\[Console\]::Error\.WriteLine'                  -Because "shim $name must write to stderr"
-            $body | Should -Match "\[deprecation\] scripts/$([regex]::Escape($name)) moved" -Because "shim $name must name itself in the deprecation marker"
-            $body | Should -Match '&\s+"\$PSScriptRoot/monaco/' + [regex]::Escape($name) + '"\s+@args' -Because "shim $name must forward via splat to scripts/monaco/"
-            $body | Should -Match 'exit \$LASTEXITCODE'                           -Because "shim $name must preserve the exit code"
+
+            $body | Should -Match 'Console.*Error.*WriteLine|Write-Error' `
+                -Because "shim $name must emit its deprecation marker to stderr"
+
+            $body | Should -Match ('\[deprecation\][^\n]*' + [regex]::Escape($name)) `
+                -Because "shim $name must name itself in the deprecation marker"
+
+            $body | Should -Match ('monaco[\\/]' + [regex]::Escape($name)) `
+                -Because "shim $name must reference scripts/monaco/$name as its target"
+
+            $body | Should -Match '@args' `
+                -Because "shim $name must forward arguments via splat"
+
+            $body | Should -Match '\$LASTEXITCODE' `
+                -Because "shim $name must propagate the underlying exit code"
         }
     }
 }

@@ -86,12 +86,16 @@ if ($meta.workspaceHash -ne $currentWorkspace) {
     throw "Workspace contents have changed since the dry-run was produced (workspaceHash mismatch). One or more project files (config.yaml / template.json) was edited after the dry-run. Re-run Invoke-MonacoDryRun.ps1 to regenerate the reviewed artifact."
 }
 
-# Freshness check.
+# Freshness check. Compare TotalMinutes WITHOUT truncating to int -- a
+# 30m59s artifact must not slip past a 30-minute window because [int]
+# rounds down to 30.
 $createdAt = [datetime]::Parse($meta.createdAtUtc).ToUniversalTime()
-$ageMin = [int]([datetime]::UtcNow - $createdAt).TotalMinutes
-if ($ageMin -gt $MaxAgeMinutes) {
-    throw "Dry-run artifact is $ageMin minute(s) old; the maximum permitted age is $MaxAgeMinutes minute(s). Re-run Invoke-MonacoDryRun.ps1 to refresh the review window."
+$ageMinExact = ([datetime]::UtcNow - $createdAt).TotalMinutes
+if ($ageMinExact -gt $MaxAgeMinutes) {
+    $ageMinDisplay = [Math]::Round($ageMinExact, 1)
+    throw "Dry-run artifact is $ageMinDisplay minute(s) old; the maximum permitted age is $MaxAgeMinutes minute(s). Re-run Invoke-MonacoDryRun.ps1 to refresh the review window."
 }
+$ageMin = [Math]::Round($ageMinExact, 1)
 
 Write-Host "Dry-run artifact verified:"
 Write-Host "  environment: $($meta.environment)"
