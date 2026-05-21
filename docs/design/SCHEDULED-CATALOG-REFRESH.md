@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Owner** | TBA |
 | **Last updated** | 2026-05-21 |
-| **Implementation PR** | in flight (`feat/scheduled-catalog-refresh`) |
+| **Implementation PR** | [#13](https://github.com/TemplateMechanics/dt-pilot/pull/13) |
 
 ## Problem
 

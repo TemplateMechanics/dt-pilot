@@ -30,8 +30,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: catalog-refresh   # gated; carries DT_ENVIRONMENT + DT_PLATFORM_TOKEN
     env:
-      # Update both together; see validate.yml for the Monaco binary
-      # pinning rationale.
+      # Update MONACO_VERSION and MONACO_SHA256 together. To rotate:
+      #   1. Pick a release at https://github.com/Dynatrace/dynatrace-configuration-as-code/releases
+      #   2. Download monaco-linux-amd64.sha256 from that release
+      #   3. Paste the sha256 string here, bump MONACO_VERSION to match
+      # The Install step below verifies the downloaded binary against
+      # this SHA-256 and refuses to run on mismatch, so a typo or
+      # tampering surfaces loudly rather than silently mis-deploying.
       MONACO_VERSION: '2.18.0'
       MONACO_SHA256: 'a16d98a5e6be8f6e2d1af5e6083505e02488b3edfb6ccd4a069bffd8bd3921f2'
       # Surface credentials by their canonical harness names so

@@ -654,6 +654,71 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
         }
     }
 
+    It 'emits a placeholder entry when an unresolvable schema has no existing entry (no silent drop)' {
+        # Regression for Copilot PR #13 pass 3: a brand-new schema added
+        # to schemas.txt that the cron cannot resolve must produce a
+        # placeholder catalog entry (family: misc, summary TODO,
+        # liveFields: []) rather than disappearing. Otherwise the
+        # downstream Sync-ConfigCatalog wipe+regen would silently drop
+        # the scaffold dir on the first transient upstream failure.
+        $unresolvableStub = { param([string] $SchemaId) return $null }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:new-schema')
+        $out    = New-TempOutputPath
+        # Seed only the management-zones entry; the new-schema id is brand new.
+        $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    { "id": "builtin:management-zones", "family": "topology", "displayName": "Management Zone", "scope": "environment", "summary": "Curated.", "commonParameters": ["zoneName"] }
+  ]
+}
+'@
+        [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+        try {
+            # All schemas unresolvable; resolvedCount=0 means whole-env-unreachable
+            # bail-out fires. To exercise the placeholder path, mix resolvable and
+            # unresolvable. We override the stub:
+            $mixedStub = {
+                param([string] $SchemaId)
+                if ($SchemaId -eq 'builtin:new-schema') { return $null }
+                return [pscustomobject]@{ description = "ok"; properties = [pscustomobject]@{ x = @{ type = 'string' } } }
+            }
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $mixedStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+            @($parsed.schemas).Count | Should -Be 2
+            $new = $parsed.schemas | Where-Object { $_.id -eq 'builtin:new-schema' }
+            $new                       | Should -Not -BeNullOrEmpty
+            $new.family                | Should -Be 'misc'
+            $new.summary               | Should -Match '^TODO:'
+            @($new.commonParameters).Count | Should -Be 0
+            @($new.liveFields).Count       | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'still bails out when ZERO schemas resolved and fatal failures observed (whole-env-unreachable)' {
+        # The placeholder behavior MUST NOT mask whole-environment-unreachable.
+        # If nothing resolved AND we caught a fatal exception, the cron path
+        # exits 0 with no PR opened. This keeps a Dynatrace incident from
+        # paging weekly via a refresh-PR full of TODOs.
+        $explosiveStub = { param([string] $SchemaId) throw "simulated transport failure" }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo')
+        $out    = New-TempOutputPath
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $explosiveStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            # No file written -- the bail-out exits before ShouldProcess.
+            (Test-Path -LiteralPath $out) | Should -BeFalse
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It 'serializes an unresolvable existing entry as [] (not [null]) when the seed lacks liveFields' {
         # Models the realistic case: the committed catalog today has NO
         # liveFields field (it lands with this PR), so re-emitting an

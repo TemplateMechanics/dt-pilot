@@ -409,9 +409,10 @@ Write-Diag "Output:  $OutputPath"
 $schemaIds = Read-SchemasInputFile -Path $InputsPath
 $existing  = Read-ExistingCatalog  -Path $OutputPath
 
-$unresolved = New-Object System.Collections.Generic.List[string]
-$entries    = New-Object System.Collections.Generic.List[object]
+$unresolved      = New-Object System.Collections.Generic.List[string]
+$entries         = New-Object System.Collections.Generic.List[object]
 $envFailureCount = 0
+$resolvedCount   = 0   # count of IDs that returned a real schema; placeholders DON'T count
 
 foreach ($id in $schemaIds) {
     try {
@@ -434,16 +435,43 @@ foreach ($id in $schemaIds) {
     $existingEntry = if ($existing.ContainsKey($id)) { $existing[$id] } else { $null }
     $entry = New-CatalogEntryFromSchema -SchemaId $id -Schema $schema -Existing $existingEntry
     $entries.Add($entry)
+    $resolvedCount += 1
 }
 
-# Whole-environment-unreachable heuristic: if every schema failed to
-# resolve AND we hit at least one fatal exception, treat the cron as a
-# no-op rather than producing a refresh PR that deletes everything.
+# Unresolvable IDs that DO have an existing entry are re-added below
+# (preserves the curated entry across a transient upstream failure).
+# Unresolvable IDs that DON'T have an existing entry would otherwise
+# silently disappear from the catalog AND from modules/configs/ on the
+# next Sync-ConfigCatalog regen -- a brand-new schema added to
+# schemas.txt would get dropped by the very first refresh that can't
+# resolve it. Emit a placeholder entry so the catalog stays aligned
+# with schemas.txt and a human reviewer can decide whether to retry,
+# remove the ID, or curate the placeholder.
+foreach ($id in $unresolved) {
+    if ($existing.ContainsKey($id)) { continue }
+    Write-Diag "Unresolved + no existing entry; emitting placeholder for $id"
+    $placeholder = [ordered]@{
+        id               = $id
+        family           = 'misc'
+        displayName      = $id
+        scope            = 'environment'
+        summary          = "TODO: Dynatrace returned no schema for $id at refresh time. Either retry on the next cron once upstream recovers, remove the ID from schemas.txt, or curate a placeholder summary by hand."
+        commonParameters = @()
+        liveFields       = @()
+    }
+    $entries.Add($placeholder)
+}
+
+# Whole-environment-unreachable heuristic: if NOT A SINGLE schema
+# resolved AND we hit at least one fatal exception, treat the cron as
+# a no-op rather than producing a refresh PR full of placeholders or
+# deletions. (We check $resolvedCount, not $entries.Count, because the
+# placeholder loop above may have added entries even when zero schemas
+# actually resolved.)
 # Split into intermediate booleans -- PS 5.1's @($list).Count combined
 # with -and inside a single if-expression can trip 'Argument types do
 # not match' depending on the list's runtime shape.
-$entriesCount = $entries.Count
-$shouldBailOut = ($entriesCount -eq 0) -and ($envFailureCount -gt 0)
+$shouldBailOut = ($resolvedCount -eq 0) -and ($envFailureCount -gt 0)
 if ($shouldBailOut) {
     Write-Diag "ZERO schemas resolved AND fatal fetch errors observed; assuming environment unreachable. Exiting 0 without changes per Design 002."
     exit 0
