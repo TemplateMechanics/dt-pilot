@@ -166,7 +166,15 @@ function Write-TfPlanMetadata {
         [Parameter(Mandatory)] [string] $TerraformExe,
         [Parameter(Mandatory)] [int]    $ExitCode,
         [Parameter(Mandatory)] [string] $PlanBinaryPath,
-        [Parameter(Mandatory)] [AllowEmptyString()] [string] $PlanJsonSummary
+        # Truncated terraform show -json text stored verbatim in the envelope.
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $PlanJsonSummary,
+        # Pre-computed add/change/destroy counts from the FULL (not the
+        # truncated) terraform show -json output. The caller computes
+        # these because once the JSON is truncated for storage it's no
+        # longer parseable.
+        [int] $WouldAdd     = 0,
+        [int] $WouldChange  = 0,
+        [int] $WouldDestroy = 0
     )
     $createdAt    = (Get-Date).ToUniversalTime().ToString('o')
     $tfVersion    = ''
@@ -180,26 +188,12 @@ function Write-TfPlanMetadata {
     }
     $hash = Get-TerraformWorkspaceHash -WorkingDir $WorkingDir
 
-    # Best-effort summary from `terraform show -json tfplan` output.
-    # Same defensive [regex]::Matches pattern Monaco uses.
-    $wouldAdd     = 0
-    $wouldChange  = 0
-    $wouldDestroy = 0
-    try {
-        if ($PlanJsonSummary) {
-            $parsed = $PlanJsonSummary | ConvertFrom-Json
-            if ($parsed.PSObject.Properties['resource_changes']) {
-                foreach ($rc in @($parsed.resource_changes)) {
-                    $actions = @($rc.change.actions)
-                    if ($actions -contains 'create') { $wouldAdd     += 1 }
-                    if ($actions -contains 'update') { $wouldChange  += 1 }
-                    if ($actions -contains 'delete') { $wouldDestroy += 1 }
-                }
-            }
-        }
-    } catch {
-        # Leave counts at zero; reviewer reads the raw envelope.
-    }
+    # Use the pre-computed counts (caller already parsed the full JSON
+    # before truncating). If the caller didn't supply them, leave at
+    # zero; the reviewer reads the raw envelope.
+    $wouldAdd     = $WouldAdd
+    $wouldChange  = $WouldChange
+    $wouldDestroy = $WouldDestroy
 
     $meta = [ordered]@{
         schema           = 'dt-pilot.tfplan/v1'

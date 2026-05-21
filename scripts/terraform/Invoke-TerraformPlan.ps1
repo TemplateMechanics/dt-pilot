@@ -83,11 +83,42 @@ if ($planResult.StdErr) { Write-Host $planResult.StdErr.TrimEnd() }
 
 # Even on failure, we still want to write the envelope so the reviewer
 # can inspect why -- the deploy wrapper enforces exitCode == 0.
-$showJson = ''
+# `terraform show -json` output can run to many MB for a large state;
+# the envelope only needs the add/change/destroy counts plus enough
+# raw text to give a reviewer a quick inline summary. Compute counts
+# from the FULL output, then truncate for storage.
+$showJson    = ''
+$wouldAdd    = 0
+$wouldChange = 0
+$wouldDestroy = 0
 if ($planResult.ExitCode -eq 0) {
     $show = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('show','-json',$Out) -WorkingDirectory $workDir -CaptureOutput
     if ($show.ExitCode -eq 0 -and $show.StdOut) {
-        $showJson = $show.StdOut
+        # Counts from the full JSON; same parsing logic as
+        # Write-TfPlanMetadata so the envelope summary is accurate even
+        # when the stored planJsonSummary is truncated.
+        try {
+            $parsed = $show.StdOut | ConvertFrom-Json
+            if ($parsed.PSObject.Properties['resource_changes']) {
+                foreach ($rc in @($parsed.resource_changes)) {
+                    $actions = @($rc.change.actions)
+                    if ($actions -contains 'create') { $wouldAdd     += 1 }
+                    if ($actions -contains 'update') { $wouldChange  += 1 }
+                    if ($actions -contains 'delete') { $wouldDestroy += 1 }
+                }
+            }
+        } catch {
+            # Leave counts at zero; reviewer reads the raw envelope.
+        }
+        $maxBytes = 64KB
+        $raw = $show.StdOut
+        if ([System.Text.Encoding]::UTF8.GetByteCount($raw) -gt $maxBytes) {
+            # Truncate at character count proxying byte cap (UTF-8 1-byte
+            # for ASCII; sufficient approximation for terraform's JSON).
+            $showJson = $raw.Substring(0, [Math]::Min($raw.Length, $maxBytes)) + "`n/* truncated -- full terraform show -json output exceeded 64 KiB; envelope summary counts came from the full payload */"
+        } else {
+            $showJson = $raw
+        }
     }
 }
 
@@ -108,7 +139,10 @@ Write-TfPlanMetadata `
     -TerraformExe     $exe `
     -ExitCode         $planResult.ExitCode `
     -PlanBinaryPath   $planBinRelative `
-    -PlanJsonSummary  $showJson
+    -PlanJsonSummary  $showJson `
+    -WouldAdd         $wouldAdd `
+    -WouldChange      $wouldChange `
+    -WouldDestroy     $wouldDestroy
 
 Write-Host "Plan envelope written: $envelopePath"
 

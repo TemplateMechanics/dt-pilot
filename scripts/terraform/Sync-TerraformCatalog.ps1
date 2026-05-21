@@ -186,11 +186,12 @@ if ($Check) {
             $drift.Add("content drift: modules/terraform/configs/$($rel.Replace('\','/'))")
         }
     }
-    $catalogFamilies = ($resourcesArr | ForEach-Object { $_.family } | Sort-Object -Unique)
-    foreach ($fam in $catalogFamilies) {
-        $famDir = Join-Path $modulesRoot $fam
-        if (-not (Test-Path -LiteralPath $famDir)) { continue }
-        foreach ($f in (Get-ChildItem -LiteralPath $famDir -Recurse -File)) {
+    # Scan EVERY file under $modulesRoot (not just families the current
+    # catalog produces) so removing an entire family / catalog entry
+    # surfaces the leftover files as drift. Otherwise a delete-only
+    # catalog edit would silently leave orphans on disk.
+    if (Test-Path -LiteralPath $modulesRoot -PathType Container) {
+        foreach ($f in (Get-ChildItem -LiteralPath $modulesRoot -Recurse -File)) {
             $rel = $f.FullName.Substring($modulesRoot.Length).TrimStart('\','/')
             $shadow = Join-Path $outRoot $rel
             if (-not (Test-Path -LiteralPath $shadow -PathType Leaf)) {

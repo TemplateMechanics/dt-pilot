@@ -39,8 +39,11 @@
 
 .PARAMETER StagedOnly
     Scan only files currently staged for commit (git diff --cached).
-    Default scans every tracked *.mcp.json under .vscode/ AND every
-    tracked *.tf in the repo.
+    Default scans every *.mcp.json under .vscode/ AND every *.tf
+    discovered by a recursive walk of the repo (untracked working-tree
+    files included). Use -StagedOnly in the pre-commit hook so a local
+    scratch file doesn't block your push; the default mode is for
+    operator-driven full-repo audits.
 
 .EXAMPLE
     ./scripts/Test-McpConfigSecrets.ps1
