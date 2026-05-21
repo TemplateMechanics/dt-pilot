@@ -10,6 +10,17 @@ on:
 permissions:
   contents: read
 
+# Only the pre-commit gate runs in dt-pilot CI by default. A real
+# `monaco deploy --dry-run` job is intentionally NOT here:
+#   - it requires Dynatrace credentials we won't grant to forks / PR
+#     workflows for security reasons; and
+#   - the structural manifest check (`Test-MonacoManifest.ps1`, run by
+#     the gate) catches every class of error a dry-run-without-creds
+#     would catch.
+# Consumers who want a credentialed dry-run job should add it to their
+# fork in a separate workflow file that runs on `workflow_dispatch` and
+# reads from a protected GitHub Actions environment.
+
 jobs:
   pre-commit-gate:
     name: Pre-commit gate (manifest + MCP secret hygiene + Pester)
@@ -33,69 +44,3 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/Pre-Commit.ps1 -All
-
-  manifest-validate:
-    name: Monaco dry-run on examples (best-effort)
-    runs-on: ubuntu-latest
-    # Independent job so a missing Monaco binary doesn't fail the whole
-    # workflow before the Pester / secret-hygiene gate has run.
-    continue-on-error: true
-    env:
-      MONACO_VERSION: '2.18.0'
-      # Update both the version and the checksum together. Compute the
-      # checksum by downloading the release's checksums.txt and copying
-      # the line for monaco-linux-amd64. Never bump MONACO_VERSION without
-      # also updating MONACO_SHA256.
-      MONACO_SHA256: 'a16d98a5e6be8f6e2d1af5e6083505e02488b3edfb6ccd4a069bffd8bd3921f2'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Monaco (with checksum verification)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ ! -d examples ] || [ -z "$(find examples -name manifest.yaml -print -quit)" ]; then
-            echo "No example manifests yet (PR 7 introduces examples/baseline-stack); skipping Monaco install."
-            exit 0
-          fi
-          curl -sSL --fail -o /tmp/monaco "https://github.com/Dynatrace/dynatrace-configuration-as-code/releases/download/v${MONACO_VERSION}/monaco-linux-amd64"
-          if [ -z "${MONACO_SHA256}" ]; then
-            echo "::error::MONACO_SHA256 is unset. Pin a SHA-256 for monaco v${MONACO_VERSION} before this job can run."
-            exit 1
-          fi
-          actual=$(sha256sum /tmp/monaco | awk '{print $1}')
-          if [ "${actual}" != "${MONACO_SHA256}" ]; then
-            echo "::error::Monaco binary checksum mismatch."
-            echo "  expected: ${MONACO_SHA256}"
-            echo "  actual:   ${actual}"
-            exit 1
-          fi
-          echo "Monaco binary verified (sha256=${actual})."
-          chmod +x /tmp/monaco
-          echo "MONACO_EXE=/tmp/monaco" >> "$GITHUB_ENV"
-
-      - name: Validate every example manifest
-        shell: pwsh
-        run: |
-          if (-not (Test-Path env:MONACO_EXE)) {
-            Write-Host "No example manifests; skipping dry-run."
-            exit 0
-          }
-          $manifests = Get-ChildItem -Path examples -Filter manifest.yaml -Recurse -ErrorAction SilentlyContinue
-          $failed = $false
-          foreach ($m in $manifests) {
-            # Validate-Monaco.ps1 signals failure via non-zero exit, not
-            # an exception; must check $LASTEXITCODE explicitly.
-            try {
-              ./scripts/Validate-Monaco.ps1 -Path $m.FullName
-              if ($LASTEXITCODE -ne 0) {
-                Write-Host "FAILED (exit $LASTEXITCODE): $($m.FullName)" -ForegroundColor Red
-                $failed = $true
-              }
-            } catch {
-              Write-Host "FAILED: $($m.FullName) -> $_" -ForegroundColor Red
-              $failed = $true
-            }
-          }
-          if ($failed) { exit 1 }
