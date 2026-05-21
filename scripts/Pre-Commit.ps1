@@ -92,14 +92,29 @@ foreach ($b in $backends) {
     # Resolve the glob via Get-ChildItem -Recurse. backends.json uses a
     # glob like 'examples/**/manifest.yaml' which we split into root +
     # filter for the cmdlet.
-    $patternRoot = ($b.manifestPattern -split '/\*\*/')[0]
-    $patternFile = Split-Path -Leaf $b.manifestPattern
-    $rootPath = Join-Path $repoRoot $patternRoot
-    if (-not (Test-Path -LiteralPath $rootPath)) {
-        Write-Host "  $($b.id): no $patternRoot directory; nothing to check" -ForegroundColor DarkGray
-        continue
+    # Resolve manifestPattern -> a list of on-disk files. Supported shapes
+    # (enforced by backends.schema.json):
+    #   1. '<dir>/**/<filename>' -- recursive search for <filename> under <dir>
+    #   2. '<dir>/<filename>'    -- single-file exact path
+    #   3. '<filename>'          -- single-file at repo root
+    # Anything containing a single '*' outside the recursive '/**/' segment
+    # is rejected so the resolver stays predictable as backends accumulate.
+    $manifests = $null
+    if ($b.manifestPattern -match '^(?<root>[^*]+)/\*\*/(?<file>[^/*]+)$') {
+        $rootPath = Join-Path $repoRoot $Matches.root
+        if (-not (Test-Path -LiteralPath $rootPath)) {
+            Write-Host "  $($b.id): no $($Matches.root) directory; nothing to check" -ForegroundColor DarkGray
+            continue
+        }
+        $manifests = Get-ChildItem -LiteralPath $rootPath -Filter $Matches.file -Recurse -ErrorAction SilentlyContinue
+    } elseif ($b.manifestPattern -notmatch '\*') {
+        $singlePath = Join-Path $repoRoot $b.manifestPattern
+        if (Test-Path -LiteralPath $singlePath -PathType Leaf) {
+            $manifests = @(Get-Item -LiteralPath $singlePath)
+        }
+    } else {
+        throw "Backend '$($b.id)' has manifestPattern '$($b.manifestPattern)' which is not in a supported shape (allowed: '<dir>/**/<filename>', '<dir>/<filename>', or '<filename>'). Update backends.json or extend the resolver in Pre-Commit.ps1."
     }
-    $manifests = Get-ChildItem -LiteralPath $rootPath -Filter $patternFile -Recurse -ErrorAction SilentlyContinue
     if (-not $manifests) {
         Write-Host "  $($b.id): no files match $($b.manifestPattern); nothing to check" -ForegroundColor DarkGray
         continue

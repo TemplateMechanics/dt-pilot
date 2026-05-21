@@ -67,7 +67,8 @@
         },
         "manifestPattern": {
           "type": "string",
-          "description": "Glob pattern (relative to repo root) matching manifest files this backend owns. Pre-Commit.ps1 finds matching files and runs the manifestValidator against each."
+          "pattern": "^(?:[^*]+/\\*\\*/[^/*]+|[^*]+|[^*/]+)$",
+          "description": "Repo-relative pattern matching manifest files this backend owns. Pre-Commit.ps1 finds matching files and runs the manifestValidator against each. Supported shapes: '<dir>/**/<filename>' (recursive search for <filename> under <dir>), '<dir>/<filename>' (single-file exact path), or '<filename>' (single-file at repo root). Patterns with '*' outside the recursive '/**/' segment are rejected by the resolver."
         },
         "manifestValidator": {
           "type": "string",
