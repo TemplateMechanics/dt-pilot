@@ -17,13 +17,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2  # need at least 2 commits so -StagedOnly diff has a base
+        # Default depth (1) is fine: CI runs -All, not -StagedOnly, so no
+        # base ref is needed for the staged-diff path.
 
-      - name: Install Pester 5
+      - name: Install Pester 5 (pinned)
         shell: pwsh
         run: |
-          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          # Pin to a specific, vetted Pester version rather than tracking
+          # 'latest', and use standard publisher verification (no
+          # -SkipPublisherCheck) so the install rejects an unexpected
+          # signature.
+          Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force
 
       - name: Run Pre-Commit gate (full, not -StagedOnly)
         shell: pwsh
@@ -38,11 +42,16 @@ jobs:
     continue-on-error: true
     env:
       MONACO_VERSION: '2.18.0'
+      # Update both the version and the checksum together. Compute the
+      # checksum by downloading the release's checksums.txt and copying
+      # the line for monaco-linux-amd64. Never bump MONACO_VERSION without
+      # also updating MONACO_SHA256.
+      MONACO_SHA256: ''
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Monaco
+      - name: Install Monaco (with checksum verification)
         shell: bash
         run: |
           set -euo pipefail
@@ -50,7 +59,19 @@ jobs:
             echo "No example manifests yet (PR 7 introduces examples/baseline-stack); skipping Monaco install."
             exit 0
           fi
-          curl -sSL -o /tmp/monaco "https://github.com/Dynatrace/dynatrace-configuration-as-code/releases/download/v${MONACO_VERSION}/monaco-linux-amd64"
+          curl -sSL --fail -o /tmp/monaco "https://github.com/Dynatrace/dynatrace-configuration-as-code/releases/download/v${MONACO_VERSION}/monaco-linux-amd64"
+          if [ -z "${MONACO_SHA256}" ]; then
+            echo "::error::MONACO_SHA256 is unset. Pin a SHA-256 for monaco v${MONACO_VERSION} before this job can run."
+            exit 1
+          fi
+          actual=$(sha256sum /tmp/monaco | awk '{print $1}')
+          if [ "${actual}" != "${MONACO_SHA256}" ]; then
+            echo "::error::Monaco binary checksum mismatch."
+            echo "  expected: ${MONACO_SHA256}"
+            echo "  actual:   ${actual}"
+            exit 1
+          fi
+          echo "Monaco binary verified (sha256=${actual})."
           chmod +x /tmp/monaco
           echo "MONACO_EXE=/tmp/monaco" >> "$GITHUB_ENV"
 

@@ -5,7 +5,9 @@
     don't ship red builds.
 
 .DESCRIPTION
-    Checks (in order; any failure stops the gate):
+    Runs every check below in order, accumulating failures, then exits
+    non-zero at the end if anything failed. This deliberately surfaces
+    multiple problems per invocation so you can fix them in one round:
         1. Manifest schema check on every example/* project.
         2. MCP secret-hygiene scan (-StagedOnly by default; -All scans
            every tracked MCP config).
