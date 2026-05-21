@@ -1,0 +1,42 @@
+{
+  // dt-pilot workspace settings — JSON schema associations, formatter
+  // defaults, file exclusions. Per-developer overrides belong in your
+  // user settings, not here. (settings.json supports JSONC: line and
+  // block comments are valid and don't appear as unknown keys in the
+  // VS Code Settings UI.)
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "[yaml]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
+  },
+  "[json]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
+  },
+  "[powershell]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  },
+  "json.schemas": [
+    {
+      "fileMatch": [".vscode/mcp.servers.catalog.json"],
+      "url": "./.vscode/schemas/mcp-servers-catalog.schema.json"
+    }
+  ],
+  "files.exclude": {
+    "**/.monaco": true,
+    "**/dryrun": false,
+    "**/downloaded": false
+  },
+  "search.exclude": {
+    "**/dryrun/**": true,
+    "**/downloaded/**": true,
+    "**/.monaco/**": true,
+    "**/node_modules/**": true
+  }
+}

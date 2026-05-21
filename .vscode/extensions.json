@@ -1,0 +1,10 @@
+{
+  "_comment": "Extensions VS Code will offer to install when this workspace opens. None are mandatory; the harness works without any of them, but they significantly improve the editing experience.",
+  "recommendations": [
+    "redhat.vscode-yaml",
+    "ms-vscode.powershell",
+    "dynatraceplatformextensions.dynatrace-extensions",
+    "github.copilot",
+    "github.copilot-chat"
+  ]
+}
