@@ -653,6 +653,76 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
             Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
         }
     }
+
+    It 'preserves an existing entry intact when its schema is unresolvable upstream' {
+        # Seed an existing catalog with a curated entry for an ID that
+        # the stub will say is unresolvable. The entry must survive the
+        # refresh untouched (curated fields preserved, no liveFields
+        # corruption, no [null] in the arrays).
+        $partialStub = {
+            param([string] $SchemaId)
+            if ($SchemaId -eq 'builtin:slo') { return $null }
+            return [pscustomobject]@{
+                description = "ok"
+                properties  = [pscustomobject]@{ x = @{ type = 'string' } }
+            }
+        }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo')
+        $out    = New-TempOutputPath
+        $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    {
+      "id": "builtin:management-zones",
+      "family": "topology",
+      "displayName": "Management Zone",
+      "scope": "environment",
+      "summary": "Stale curated summary.",
+      "commonParameters": ["zoneName"]
+    },
+    {
+      "id": "builtin:slo",
+      "family": "alerting",
+      "displayName": "Service Level Objective",
+      "scope": "environment",
+      "summary": "Pre-existing curated SLO summary that must survive an unresolvable refresh.",
+      "commonParameters": ["sloName","targetPct","warningPct"],
+      "liveFields": ["enabled","name","target","warning"]
+    }
+  ]
+}
+'@
+        [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $partialStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+            @($parsed.schemas).Count | Should -Be 2
+
+            # The resolvable entry has refreshed summary + liveFields.
+            $mz = $parsed.schemas | Where-Object { $_.id -eq 'builtin:management-zones' }
+            $mz.family             | Should -Be 'topology'
+            $mz.summary            | Should -Be 'ok'   # refreshed from the stub
+
+            # The UNresolvable entry survives byte-for-byte from the seed.
+            $slo = $parsed.schemas | Where-Object { $_.id -eq 'builtin:slo' }
+            $slo.family                                    | Should -Be 'alerting'
+            $slo.displayName                               | Should -Be 'Service Level Objective'
+            $slo.summary                                   | Should -Be 'Pre-existing curated SLO summary that must survive an unresolvable refresh.'
+            @($slo.commonParameters) -join ','             | Should -Be 'sloName,targetPct,warningPct'
+            @($slo.liveFields)       -join ','             | Should -Be 'enabled,name,target,warning'
+
+            # No literal [null] / null entries in arrays anywhere in the file.
+            $body = [System.IO.File]::ReadAllText($out)
+            $body | Should -Not -Match '\[null\]'
+            $body | Should -Not -Match '"liveFields":\s*null'
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 Describe 'Sync-ConfigCatalog.ps1' {

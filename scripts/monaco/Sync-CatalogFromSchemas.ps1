@@ -59,10 +59,12 @@
     Internal hook used by the Pester suite to substitute a fake schema
     provider for the real `monaco generate schema` call. The block
     receives a single $SchemaId positional parameter and must return
-    either a parsed JSON object (hashtable / pscustomobject) for
-    success or $null to signal "schema not resolvable". Do not set
-    this in production; the workflow leaves it empty so the real
-    monaco invocation is used.
+    either a [pscustomobject] equivalent to what `ConvertFrom-Json`
+    produces from a real schema response (specifically: accessed via
+    .PSObject.Properties for optional-field detection, so plain
+    hashtables won't work) or $null to signal "schema not resolvable".
+    Do not set this in production; the workflow leaves it empty so the
+    real monaco invocation is used.
 
 .EXAMPLE
     # Dry inspection. Prints the diff summary, leaves catalog.settings.json untouched.
