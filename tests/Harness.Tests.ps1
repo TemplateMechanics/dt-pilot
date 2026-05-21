@@ -392,53 +392,30 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
     }
 }
 
-Describe 'Compatibility shims at scripts/ root' {
+Describe 'Monaco wrapper paths (post-shim-removal invariant)' {
+    # The compatibility shims at scripts/Invoke-Monaco*.ps1 etc. were
+    # removed in chore/remove-monaco-shims (issue #11). This Describe
+    # block locks in the inverse invariant: the Monaco wrappers MUST live
+    # under scripts/monaco/, and the legacy shim paths MUST NOT exist.
     BeforeAll {
-        $script:ExpectedShims = @(
+        $script:MonacoWrapperNames = @(
             'Get-MonacoVersion.ps1','Initialize-MonacoWorkspace.ps1','Invoke-MonacoDelete.ps1',
             'Invoke-MonacoDeploy.ps1','Invoke-MonacoDownload.ps1','Invoke-MonacoDryRun.ps1',
             'Invoke-MonacoGenerate.ps1','Sync-ConfigCatalog.ps1','Test-MonacoManifest.ps1','Validate-Monaco.ps1'
         )
     }
 
-    It 'every Monaco wrapper has a shim at scripts/ root and a target under scripts/monaco/' {
-        foreach ($name in $script:ExpectedShims) {
-            $shim = Join-Path $script:ScriptDir $name
-            (Test-Path -LiteralPath $shim -PathType Leaf) | Should -BeTrue -Because "shim $name must exist at scripts/ root"
+    It 'every Monaco wrapper lives under scripts/monaco/' {
+        foreach ($name in $script:MonacoWrapperNames) {
             $target = Join-Path $script:MonacoDir $name
-            (Test-Path -LiteralPath $target -PathType Leaf) | Should -BeTrue -Because "target $name must exist at scripts/monaco/"
+            (Test-Path -LiteralPath $target -PathType Leaf) | Should -BeTrue -Because "$name must live at scripts/monaco/$name"
         }
     }
 
-    It 'every shim writes a deprecation marker to stderr, forwards to scripts/monaco/, and preserves the exit code' {
-        # Intent-level assertions only -- formatting (single vs double
-        # quotes, Join-Path vs literal, forward vs backslash) is not the
-        # contract. The contract is: deprecation -> stderr, invocation of
-        # the monaco target with @args, exit code passthrough.
-        foreach ($name in $script:ExpectedShims) {
-            $shim = Join-Path $script:ScriptDir $name
-            $body = Get-Content -LiteralPath $shim -Raw
-
-            # Accept any common PS stderr emission shape: the .NET
-            # Console.Error API, Write-Error, or the `1>&2` redirection
-            # operator. (`2>&1` does the opposite -- it folds stderr
-            # into stdout -- so it is intentionally NOT accepted.)
-            # Source-text matching is permissive; runtime behavior is
-            # what matters.
-            $body | Should -Match '(?i)(Console.*Error.*WriteLine|Write-Error|1>&2)' `
-                -Because "shim $name must emit its deprecation marker to stderr by some means"
-
-            $body | Should -Match ('\[deprecation\][^\n]*' + [regex]::Escape($name)) `
-                -Because "shim $name must name itself in the deprecation marker"
-
-            $body | Should -Match ('monaco[\\/]' + [regex]::Escape($name)) `
-                -Because "shim $name must reference scripts/monaco/$name as its target"
-
-            $body | Should -Match '@args' `
-                -Because "shim $name must forward arguments via splat"
-
-            $body | Should -Match '\$LASTEXITCODE' `
-                -Because "shim $name must propagate the underlying exit code"
+    It 'no legacy shim files remain at scripts/ root' {
+        foreach ($name in $script:MonacoWrapperNames) {
+            $legacy = Join-Path $script:ScriptDir $name
+            (Test-Path -LiteralPath $legacy -PathType Leaf) | Should -BeFalse -Because "legacy shim scripts/$name must NOT exist after issue #11"
         }
     }
 }

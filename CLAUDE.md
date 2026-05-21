@@ -35,8 +35,6 @@ If multiple backends apply to the same workspace (a tenant managed by both Monac
 
 The authoritative registry of supported backends lives at [`config/catalog/backends.json`](config/catalog/backends.json). Tooling (`Pre-Commit.ps1`, future `Sync-McpServerEnablement.ps1`) reads that file rather than hard-coding paths; agents read it to enumerate what's supported.
 
-Legacy wrapper paths under `scripts/Invoke-Monaco*.ps1` (and similar) are compatibility shims that forward to `scripts/monaco/...` and emit a deprecation warning to stderr. Update invocations to the new paths; shims will be removed in the release after the one that introduces them.
-
 ## Key Rules
 
 1. **YAML uses 2-space indentation** — never tabs in `.yaml` files. JSON templates use 2-space indentation.

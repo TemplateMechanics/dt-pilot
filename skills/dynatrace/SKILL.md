@@ -4,7 +4,7 @@ This is the canonical reference for working with Dynatrace configuration in this
 
 Read this skill before editing any `manifest.yaml`, `config.yaml`, or `template.json`. When this document and external Dynatrace documentation conflict, the Dynatrace documentation wins for product behavior; this skill wins for repository conventions (file layout, parameter naming, branch/PR discipline).
 
-Wrapper scripts referenced below live at `scripts/monaco/Invoke-Monaco*.ps1` (and similar). Compatibility shims at the legacy `scripts/Invoke-Monaco*.ps1` paths still work but emit a deprecation warning; update invocations to the new paths.
+Wrapper scripts referenced below live at `scripts/monaco/Invoke-Monaco*.ps1` (and similar). The legacy `scripts/Invoke-Monaco*.ps1` shim paths were removed in [issue #11](https://github.com/TemplateMechanics/dt-pilot/issues/11); use the canonical `scripts/monaco/` paths.
 
 ---
 

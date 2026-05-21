@@ -24,5 +24,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Scripts reorganized into `scripts/monaco/`.** Every Monaco-specific wrapper (`Invoke-Monaco*.ps1`, `Validate-Monaco.ps1`, `Test-MonacoManifest.ps1`, `Initialize-MonacoWorkspace.ps1`, `Get-MonacoVersion.ps1`, `Sync-ConfigCatalog.ps1`, `_Common.ps1`) now lives under `scripts/monaco/`. Repo-wide scripts (`Pre-Commit.ps1`, `Test-McpConfigSecrets.ps1`, MCP launchers) stay at `scripts/` root.
 
-### Deprecated
-- Compatibility shims at the legacy `scripts/Invoke-Monaco*.ps1`, `scripts/Validate-Monaco.ps1`, etc. paths. They forward to `scripts/monaco/*` and emit a deprecation warning to stderr on every invocation. **Scheduled for removal in the release after the one that introduces them** — update invocations now. Tracking issue to be filed after this PR merges.
+### Removed
+- Compatibility shims at the legacy `scripts/Invoke-Monaco*.ps1`, `scripts/Validate-Monaco.ps1`, `scripts/Test-MonacoManifest.ps1`, `scripts/Initialize-MonacoWorkspace.ps1`, `scripts/Get-MonacoVersion.ps1`, and `scripts/Sync-ConfigCatalog.ps1` paths. Use the canonical paths under `scripts/monaco/` instead. Closes [#11](https://github.com/TemplateMechanics/dt-pilot/issues/11).
