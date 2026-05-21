@@ -33,12 +33,20 @@ $warnings = New-Object System.Collections.Generic.List[string]
 $npx = Get-Command -Name npx -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $npx) {
     $errors.Add("npx not found on PATH. Install Node.js >= 20 from https://nodejs.org.")
+}
+$node = Get-Command -Name node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $node) {
+    $errors.Add("node not found on PATH; cannot verify the Node.js >= 20 requirement. Install Node.js from https://nodejs.org.")
 } else {
-    $node = Get-Command -Name node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($node) {
-        $verRaw = (& $node.Path --version 2>$null).Trim().TrimStart('v')
-        $verMajor = [int]($verRaw.Split('.')[0])
-        if ($verMajor -lt 20) {
+    $verOutput = (& $node.Path --version 2>$null)
+    if (-not $verOutput) {
+        $errors.Add("Could not read 'node --version' output. The node binary at $($node.Path) may be broken.")
+    } else {
+        $verRaw = $verOutput.Trim().TrimStart('v')
+        $major = 0
+        if (-not [int]::TryParse($verRaw.Split('.')[0], [ref]$major)) {
+            $errors.Add("Could not parse Node.js version '$verRaw' from $($node.Path).")
+        } elseif ($major -lt 20) {
             $errors.Add("Node.js v$verRaw is below the required v20. Upgrade Node.js.")
         } else {
             Write-Host "node: v$verRaw  ($($node.Path))"

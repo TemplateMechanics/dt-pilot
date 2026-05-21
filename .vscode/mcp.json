@@ -32,7 +32,7 @@
     {
       "type": "promptString",
       "id": "dt_environment",
-      "description": "Dynatrace platform URL (e.g. https://abc12345.apps.dynatrace.com). Tokens and OAuth secrets come from environment variables, never this file.",
+      "description": "Dynatrace platform URL. Format: https://<TENANT_ID>.apps.example - replace the host with your real tenant when prompted. Tokens and OAuth secrets come from environment variables, never this file.",
       "password": false
     },
     {

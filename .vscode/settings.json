@@ -18,11 +18,12 @@
     "editor.tabSize": 4,
     "editor.insertSpaces": true
   },
-  "yaml.schemas": {
-    "./.vscode/schemas/mcp-servers-catalog.schema.json": [
-      ".vscode/mcp.servers.catalog.json"
-    ]
-  },
+  "json.schemas": [
+    {
+      "fileMatch": [".vscode/mcp.servers.catalog.json"],
+      "url": "./.vscode/schemas/mcp-servers-catalog.schema.json"
+    }
+  ],
   "files.exclude": {
     "**/.monaco": true,
     "**/dryrun": false,

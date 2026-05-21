@@ -10,7 +10,7 @@ dt-pilot reads credentials exclusively from environment variables. No tokens, OA
 | **OAuth client credentials** | Monaco deploys + account-management ops, Dynatrace MCP server | `DT_ENVIRONMENT`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` |
 | **Classic API token** | Classic config-API Monaco deploys (`auto-tag` and similar legacy APIs) | `DT_ENVIRONMENT`, plus a per-environment classic token env var named in `manifest.yaml` |
 
-The Dynatrace MCP server also supports browser SSO (`DT_ENVIRONMENT` only) — fine for interactive use, not appropriate for CI or unattended deploys.
+The upstream Dynatrace MCP server *also* supports browser SSO (with `DT_ENVIRONMENT` set and no other credentials), but **dt-pilot intentionally disables that path**: `Start-DynatraceMcpServer.ps1` and `Test-DynatraceMcpReadiness.ps1` both refuse to start without either a platform token or OAuth credentials. The harness is designed for unattended / scripted use; an interactive SSO flow would block the MCP transport while the browser is open and is the wrong default for an agent-driven workflow.
 
 ## Picking an auth mode
 

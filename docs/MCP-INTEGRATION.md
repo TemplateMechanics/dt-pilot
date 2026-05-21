@@ -64,7 +64,7 @@ See [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full setup walkthrough (tok
 ./scripts/Set-McpServerState.ps1 -Server context7 -Disable
 ```
 
-`Set-McpServerState.ps1` refuses to disable a server marked `alwaysEnabled` in the catalog. Never hand-edit `.vscode/mcp.json` to flip a server on/off — the script preserves JSON formatting and centralises the validation.
+`Set-McpServerState.ps1` refuses to disable a server marked `alwaysEnabled` in the catalog. Use this script — not hand edits — to flip a server on/off so the validation (catalog membership, `alwaysEnabled` check) runs every time. The script writes normalized JSON via `ConvertTo-Json`, so any custom formatting in `.vscode/mcp.json` is rewritten on each invocation; this is intentional and keeps the file shape deterministic across edits.
 
 ## Secret hygiene
 

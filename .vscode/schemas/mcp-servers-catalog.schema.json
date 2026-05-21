@@ -44,7 +44,7 @@
         "requiresEnv": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Environment variables that MUST be set for this server to function. Test-DynatraceMcpReadiness.ps1 enforces this list."
+          "description": "Environment variables that MUST be set for this server to function. Consumers may enforce this (e.g. a future Test-McpReadiness expansion) or use it as documentation; today the dt-pilot scripts only enforce a hardcoded subset for the dynatrace server."
         },
         "acceptsOneOfEnv": {
           "type": "array",

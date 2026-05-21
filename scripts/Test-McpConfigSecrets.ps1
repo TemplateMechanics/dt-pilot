@@ -5,14 +5,24 @@
     with -StagedOnly to block accidental token commits.
 
 .DESCRIPTION
-    Inspects .vscode/mcp.json (and any other *.mcp.json patterns) for:
-        - 'value' literals that look like Dynatrace tokens (dt0c01.*,
-          dt0s01.*, dt0s06.*, dt0u01.*, dt0v01.*)
-        - OAuth client secrets that look like raw secrets (long base64
-          / hex strings inline rather than via env var references)
-        - 'value' literals that look like live tenant URLs
-          (*.live.dynatrace.com, *.apps.dynatrace.com, *.dynatracelabs.com)
+    Parses each target file as JSON and inspects the load-bearing fields
+    (every 'value' under 'env:' blocks and every 'value' under 'inputs[]'
+    entries — i.e. the spots that actually get sent to the MCP client at
+    launch time). 'description' fields and other free-text are NOT
+    scanned, so realistic-looking example URLs in input prompts don't
+    trip the scanner.
+
+    Patterns detected:
+        - Dynatrace token literals (any dt0XX. prefix family)
+        - Live tenant URLs (*.live.dynatrace.com, *.apps.dynatrace.com,
+          *.dynatracelabs.com)
         - Bearer tokens embedded in URLs (https://user:token@...)
+
+    OAuth client-secret detection by string-shape is not attempted: secrets
+    are entropy-shaped and string-shape heuristics produce too many false
+    positives. The repo convention is that secrets never appear as inline
+    values anyway — they come from env-var references — and the live tenant
+    URL + token literal checks are sufficient to enforce that convention.
 
     Per-developer secrets belong in .vscode/mcp.session.json (gitignored)
     or in environment variables that mcp.json references by name.
@@ -73,18 +83,65 @@ $tokenPrefixRegex = '\b(dt0[a-z0-9]{2,3}\.[A-Z0-9]{24}\.[A-Z0-9]{64})\b'
 $tenantUrlRegex   = 'https?://[A-Za-z0-9.-]+\.(live\.dynatrace\.com|apps\.dynatrace\.com|dynatracelabs\.com)'
 $bearerInUrlRegex = 'https?://[^:@\s]+:[^@\s]+@'
 
+function Test-StringForSecrets {
+    param(
+        [string] $Value,
+        [string] $File,
+        [string] $Location
+    )
+    if (-not $Value) { return @() }
+    $hits = @()
+    if ($Value -match $tokenPrefixRegex) {
+        $hits += ("{0}  ({1}): Dynatrace token literal detected" -f $File, $Location)
+    }
+    if ($Value -match $tenantUrlRegex) {
+        $hits += ("{0}  ({1}): live tenant URL literal '{2}' — use type:environment + env-var reference instead" -f $File, $Location, $Matches[0])
+    }
+    if ($Value -match $bearerInUrlRegex) {
+        $hits += ("{0}  ({1}): credential embedded in URL detected" -f $File, $Location)
+    }
+    return $hits
+}
+
 foreach ($file in $targets) {
-    $lines = Get-Content -LiteralPath $file
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i]
-        if ($line -match $tokenPrefixRegex) {
-            $findings.Add(("{0}:{1}  Dynatrace token literal detected" -f $file, ($i + 1)))
+    try {
+        $json = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+    } catch {
+        $findings.Add(("{0}: not valid JSON — refusing to scan ({1})" -f $file, $_.Exception.Message))
+        continue
+    }
+
+    # Every 'env' value under any 'servers.<id>'.
+    if ($json.PSObject.Properties['servers']) {
+        foreach ($srvProp in $json.servers.PSObject.Properties) {
+            $srv = $srvProp.Value
+            if ($srv.PSObject.Properties['env']) {
+                foreach ($envProp in $srv.env.PSObject.Properties) {
+                    $hits = Test-StringForSecrets -Value $envProp.Value -File $file -Location ("servers.{0}.env.{1}" -f $srvProp.Name, $envProp.Name)
+                    foreach ($h in $hits) { $findings.Add($h) }
+                }
+            }
+            # 'args' is also a load-bearing field — scan each entry.
+            if ($srv.PSObject.Properties['args']) {
+                for ($i = 0; $i -lt $srv.args.Count; $i++) {
+                    $hits = Test-StringForSecrets -Value $srv.args[$i] -File $file -Location ("servers.{0}.args[{1}]" -f $srvProp.Name, $i)
+                    foreach ($h in $hits) { $findings.Add($h) }
+                }
+            }
         }
-        if ($line -match $tenantUrlRegex) {
-            $findings.Add(("{0}:{1}  live tenant URL literal detected ({2}) — use type:environment + env-var reference instead" -f $file, ($i + 1), $Matches[0]))
-        }
-        if ($line -match $bearerInUrlRegex) {
-            $findings.Add(("{0}:{1}  credential embedded in URL detected" -f $file, ($i + 1)))
+    }
+
+    # Inputs: only scan 'value' / 'default', NEVER 'description' (which
+    # legitimately contains placeholder URLs).
+    if ($json.PSObject.Properties['inputs']) {
+        for ($i = 0; $i -lt $json.inputs.Count; $i++) {
+            $inp = $json.inputs[$i]
+            foreach ($field in @('value','default')) {
+                if ($inp.PSObject.Properties[$field]) {
+                    $hits = Test-StringForSecrets -Value $inp.$field -File $file -Location ("inputs[{0}].{1}" -f $i, $field)
+                    foreach ($h in $hits) { $findings.Add($h) }
+                }
+            }
         }
     }
 }
