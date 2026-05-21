@@ -130,8 +130,9 @@ This is the part with real diff size. Three rules to keep the move boring:
 
 | Step | What | Who |
 |---|---|---|
-| 1 | This proposal merges as `Draft → Accepted` | Maintainer |
-| 2 | Implementation PR lands: `git mv` scripts, add `skills/iac/SKILL.md`, add `backends.json`, add router section to `CLAUDE.md`, add compatibility shims | Implementer |
+| 1 | This proposal merges as `Draft` (no status flip on the proposal-PR itself, per the lifecycle in [`docs/design/README.md`](README.md)) | Maintainer |
+| 2 | Implementation PR opens; its first commit flips this doc's Status from `Draft` to `Accepted`. The implementation: `git mv` scripts, add `skills/iac/SKILL.md`, add `backends.json`, add router section to `CLAUDE.md`, add compatibility shims | Implementer |
+| 2a | Implementation PR's final commit flips Status to `Implemented (#<PR>)` and updates the [proposal index](README.md) row | Implementer |
 | 3 | Run `./scripts/Pre-Commit.ps1 -All` locally + CI; both must pass before merge | Implementer + reviewer |
 | 4 | Update [`CHANGELOG.md`](../../CHANGELOG.md) under `[Unreleased]` with "moved scripts/* to scripts/monaco/* with deprecation shims" | Implementer |
 | 5 | Open an issue: "Remove scripts/Invoke-Monaco*.ps1 compatibility shims" tagged for the next release | Implementer |

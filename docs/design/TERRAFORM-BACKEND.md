@@ -112,16 +112,17 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope:
 
 ### Auth integration
 
-Terraform's Dynatrace provider takes credentials via env vars or provider block. dt-pilot's convention applies unchanged:
+The harness keeps its canonical environment variables (`DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) at the user-facing surface. The Terraform Dynatrace provider expects different names (`DT_ENV_URL`, `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET`, `DT_ACCOUNT_ID`). Mapping happens *inside* the wrappers, not in user-facing docs:
 
-- `DT_ENV_URL` (the provider's variable name; equivalent to Monaco's `DT_ENVIRONMENT`).
-- `DT_API_TOKEN` for classic API token, or `DT_CLIENT_ID` + `DT_CLIENT_SECRET` + `DT_ACCOUNT_ID` for OAuth.
+- `Invoke-TerraformPlan.ps1` / `Invoke-TerraformApply.ps1` read the canonical env vars at start, then export the provider-specific names into the child Terraform process. The user sets the harness names once; the wrappers translate per-backend.
+- The committed Terraform's provider block references only the provider-specific names; the user never sees them outside the provider block.
+- `docs/AUTHENTICATION.md` documents the mapping in one place so a developer running Terraform outside the wrappers (rare; not supported, but readable) knows what to set.
 
-`docs/AUTHENTICATION.md` gets a Terraform section documenting the mapping. The provider block in committed Terraform pulls every credential from env vars; no hardcoded tokens. `Test-McpConfigSecrets.ps1` already scans for `dt0` token literals — its JSON-aware scanner would need an extension to also scan committed `.tf` files. That extension is part of this PR.
+The committed Terraform pulls every credential from env vars; no hardcoded tokens. `Test-McpConfigSecrets.ps1` already scans for `dt0` token literals — its JSON-aware scanner would need an extension to also scan committed `.tf` files. That extension is part of this PR.
 
 ### MCP additions
 
-Two entries added to `.vscode/mcp.json`:
+One entry added to `.vscode/mcp.json` (the existing `dynatrace` MCP server stays as-is and serves the read path for both backends):
 
 ```json
 "terraform": {
@@ -132,9 +133,9 @@ Two entries added to `.vscode/mcp.json`:
 }
 ```
 
-Off by default; the routing rule in `CLAUDE.md` (Design 001) flips it on when the workspace contains `*.tf` files via `Sync-McpServerEnablement.ps1` (also Design 001).
+Plus a matching entry in `.vscode/mcp.servers.catalog.json` so the toggle and readiness scripts treat it identically to the Dynatrace server.
 
-The Dynatrace MCP server stays as-is; it serves the read path for both backends.
+Off by default; the routing rule in `CLAUDE.md` (Design 001) flips it on when the workspace contains `*.tf` files via `Sync-McpServerEnablement.ps1` (also Design 001).
 
 ### Pester additions
 
@@ -154,8 +155,8 @@ All hermetic; no real Terraform binary needed (use a fake `-TerraformExe` path t
 | Step | What |
 |---|---|
 | 1 | [Design 001](MULTI-BACKEND-SKELETON.md) implementation merged |
-| 2 | This proposal merged as `Accepted` |
-| 3 | Implementation PR lands: skill, scripts, catalog entries, modules, example, agent persona, MCP entries, Pester tests |
+| 2 | This proposal merges as `Draft` (per the lifecycle in [`docs/design/README.md`](README.md), status flips happen in the implementation PR, not the proposal PR) |
+| 3 | Implementation PR opens; first commit flips Status to `Accepted`; final commit flips to `Implemented (#<PR>)`. Body: skill, scripts, catalog entries, modules, example, agent persona, MCP entries, Pester tests |
 | 4 | `Pre-Commit.ps1` already iterates `backends.json` (Design 001), so picks up Terraform's catalog `-Check` automatically |
 | 5 | CI's pre-commit-gate validates the new wrappers without needing Terraform installed on the runner; if we want a real `terraform plan` exercise in CI, that's a separate `terraform-validate` job analogous to the originally-removed Monaco one, with the same credential-gating considerations |
 
