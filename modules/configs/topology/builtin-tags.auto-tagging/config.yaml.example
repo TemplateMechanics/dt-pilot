@@ -1,0 +1,20 @@
+﻿# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Auto-Tag Rule (builtin:tags.auto-tagging).
+# Copy this file to projects/<your-project>/builtin-tags.auto-tagging/config.yaml and fill in the TODO values.
+configs:
+  - id: TODO-config-id
+    type:
+      settings:
+        schema: builtin:tags.auto-tagging
+        scope: environment
+    config:
+      name: TODO-display-name
+      template: template.json
+      parameters:
+        tagName:
+          type: value
+          value: TODO-tagName
+        ruleExpression:
+          type: value
+          value: TODO-ruleExpression

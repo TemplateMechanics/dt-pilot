@@ -1,0 +1,71 @@
+{
+  "$schema": "./schema.json",
+  "_comment": "Reflected catalog of Dynatrace settings 2.0 schemas and classic-API config types that dt-pilot ships scaffolds for. Sync-ConfigCatalog.ps1 reads this file and regenerates modules/configs/<id>/ from each entry. Keep the catalog minimal and curated — adding an entry is a deliberate decision to support that config type with a scaffold; new entries land in a focused PR with the regenerated module in the same commit.",
+  "version": "1.0",
+  "schemas": [
+    {
+      "id": "builtin:management-zones",
+      "family": "topology",
+      "displayName": "Management Zone",
+      "scope": "environment",
+      "summary": "Service / host / process-group filter used for access control and as a referenceable target by alerting profiles, SLOs, dashboards, and notification configs.",
+      "commonParameters": [ "zoneName" ]
+    },
+    {
+      "id": "builtin:alerting.profile",
+      "family": "alerting",
+      "displayName": "Alerting Profile",
+      "scope": "environment",
+      "summary": "Severity-rule set that gates which problems trigger notifications. Almost always scoped to a management zone via a reference parameter.",
+      "commonParameters": [ "profileName", "managementZoneId" ]
+    },
+    {
+      "id": "builtin:slo",
+      "family": "alerting",
+      "displayName": "Service Level Objective",
+      "scope": "environment",
+      "summary": "Defines an SLO over a metric expression with target and warning thresholds. Typically filtered by a management zone reference.",
+      "commonParameters": [ "sloName", "targetPct", "warningPct", "managementZoneId" ]
+    },
+    {
+      "id": "builtin:problem.notifications",
+      "family": "alerting",
+      "displayName": "Problem Notification",
+      "scope": "environment",
+      "summary": "Email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters routing for problems matching an alerting profile. The per-type payload shape differs significantly — generate the schema with Invoke-MonacoGenerate before authoring.",
+      "commonParameters": [ "notificationName", "alertingProfileId" ]
+    },
+    {
+      "id": "builtin:tags.auto-tagging",
+      "family": "topology",
+      "displayName": "Auto-Tag Rule",
+      "scope": "environment",
+      "summary": "Rule for attaching tags to entities based on attribute / metadata predicates. Tags are the primary way to compose downstream management-zone and alerting filters.",
+      "commonParameters": [ "tagName", "ruleExpression" ]
+    },
+    {
+      "id": "builtin:anomaly-detection.metric-events",
+      "family": "alerting",
+      "displayName": "Metric-Event Anomaly Detection",
+      "scope": "environment",
+      "summary": "Threshold / baseline anomaly rule over a metric selector; emits CUSTOM_ALERT problems when triggered.",
+      "commonParameters": [ "eventName", "metricSelector", "threshold" ]
+    },
+    {
+      "id": "builtin:dashboards",
+      "family": "visualization",
+      "displayName": "Dashboard",
+      "scope": "environment",
+      "summary": "Dashboard payload (tiles, layouts, filters). Templates tend to be large — keep parameters narrow and store the bulk in the JSON.",
+      "commonParameters": [ "dashboardName", "owner" ]
+    },
+    {
+      "id": "builtin:problem.notifications/email",
+      "family": "alerting",
+      "displayName": "Problem Notification — Email",
+      "scope": "environment",
+      "summary": "Per-type scaffold for builtin:problem.notifications when the channel is EMAIL. Other channels (SLACK, WEBHOOK, PAGERDUTY, JIRA, OPSGENIE, XMATTERS) each have their own required fields; consult monaco generate schema before authoring.",
+      "commonParameters": [ "notificationName", "alertingProfileId", "recipientEmail" ]
+    }
+  ]
+}

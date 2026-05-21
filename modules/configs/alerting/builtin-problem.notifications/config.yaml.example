@@ -1,0 +1,20 @@
+﻿# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Problem Notification (builtin:problem.notifications).
+# Copy this file to projects/<your-project>/builtin-problem.notifications/config.yaml and fill in the TODO values.
+configs:
+  - id: TODO-config-id
+    type:
+      settings:
+        schema: builtin:problem.notifications
+        scope: environment
+    config:
+      name: TODO-display-name
+      template: template.json
+      parameters:
+        notificationName:
+          type: value
+          value: TODO-notificationName
+        alertingProfileId:
+          type: value
+          value: TODO-alertingProfileId

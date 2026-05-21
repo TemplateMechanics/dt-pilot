@@ -391,6 +391,13 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
     }
 }
 
+Describe 'Sync-ConfigCatalog.ps1' {
+    It '-Check passes against the committed modules/configs/' {
+        & (Join-Path $script:ScriptDir 'Sync-ConfigCatalog.ps1') -Check *>&1 | Out-Null
+        $LASTEXITCODE | Should -Be 0
+    }
+}
+
 Describe 'Invoke-MonacoDelete.ps1 rejection paths' {
     It 'refuses without -Confirm' {
         $root = New-TempWorkspace -ManifestBody $script:MinimalManifest -ProjectFiles @{

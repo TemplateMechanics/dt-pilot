@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://templatemechanics.github.io/dt-pilot/schemas/catalog.settings.schema.json",
+  "title": "dt-pilot reflected config catalog",
+  "description": "Schema for config/catalog/catalog.settings.json — the curated list of Dynatrace settings 2.0 schemas and classic-API config types that dt-pilot ships scaffolds for.",
+  "type": "object",
+  "required": ["version", "schemas"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "schemas": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/schema" }
+    }
+  },
+  "$defs": {
+    "schema": {
+      "type": "object",
+      "required": ["id", "family", "displayName", "scope", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.:/-]*[a-z0-9]$",
+          "description": "Dynatrace settings 2.0 schema ID (e.g. builtin:alerting.profile), classic-API id (e.g. auto-tag), or a per-channel subtype using the 'parent/subtype' shape (e.g. builtin:problem.notifications/email)."
+        },
+        "family": {
+          "type": "string",
+          "enum": ["topology", "alerting", "visualization", "automation", "security", "account", "misc"],
+          "description": "Coarse grouping. modules/configs/ groups scaffolds by family for discoverability."
+        },
+        "displayName": { "type": "string" },
+        "scope": {
+          "type": "string",
+          "enum": ["environment", "host", "host-group", "process-group", "entity"],
+          "description": "Default scope for the generated scaffold. Override per-config when authoring."
+        },
+        "summary": {
+          "type": "string",
+          "description": "One- or two-sentence description of what configs of this type do."
+        },
+        "commonParameters": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Parameter names the generator should pre-declare in the scaffold's config.yaml. The user fills in values when adopting the scaffold."
+        }
+      }
+    }
+  }
+}
