@@ -571,13 +571,16 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
         try {
             & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
             $body = [System.IO.File]::ReadAllText($out)
-            # The _comment string in the formatted catalog contains literal
-            # angle brackets in the path templates '<family>' and '<safe-id>'.
-            # PowerShell's ConvertTo-Json would have HTML-escaped them to
-            # '<' (open) and '>' (close); the strict serializer
-            # in ConvertTo-StrictJsonString preserves the raw characters.
-            # If this test ever sees < in the body it means a
-            # ConvertTo-Json call snuck back into the JSON serialization path.
+            # The _comment string in the formatted catalog contains the
+            # literal path templates '<family>' and '<safe-id>'. The
+            # strict serializer (ConvertTo-StrictJsonString) emits the
+            # raw '<' / '>' bytes; PowerShell's built-in ConvertTo-Json
+            # would have escaped them to the JSON-unicode form
+            # '<' / '>'. The assertions below lock in the
+            # strict-serializer behavior: the raw brackets MUST be
+            # present and the escaped form MUST NOT be. If the second
+            # assertion ever fires, a ConvertTo-Json call snuck back
+            # into the JSON serialization path.
             $body | Should -Match '<family>'
             $body | Should -Match '<safe-id>'
             $body | Should -Not -Match '\\u003c'

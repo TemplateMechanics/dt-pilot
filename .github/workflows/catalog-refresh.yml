@@ -104,12 +104,16 @@ jobs:
           # run to detect drift and open a PR that doesn't carry the
           # change. The refresh script touches only config/catalog/ and
           # modules/configs/.
-          if git diff --quiet --exit-code -- config/catalog/ modules/configs/; then
+          # Use 'git status --porcelain' (not 'git diff --quiet') because
+          # the refresh can create new scaffold directories for a new
+          # schema; git diff alone ignores untracked files.
+          changed=$(git status --porcelain -- config/catalog/ modules/configs/ | head -c 1)
+          if [ -z "$changed" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No catalog drift; not opening a refresh PR."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            git --no-pager diff --stat -- config/catalog/ modules/configs/
+            git --no-pager status --short -- config/catalog/ modules/configs/
           fi
 
       - name: Branch, commit, push, open PR
@@ -230,8 +234,17 @@ jobs:
 
           # Reuse an existing open PR on this branch if there is one;
           # otherwise create. Either way, request @copilot review.
-          $existing = (gh pr view $branch --json number 2>$null)
-          if ($LASTEXITCODE -eq 0 -and $existing) {
+          # gh pr view exits non-zero when no PR exists, which with
+          # $PSNativeCommandUseErrorActionPreference=true would throw
+          # and abort the workflow. Catch that here so the no-PR case
+          # routes to the create path normally.
+          $existing = $null
+          try {
+            $existing = (gh pr view $branch --json number 2>$null)
+          } catch {
+            $existing = $null
+          }
+          if ($existing) {
             $prNum = ($existing | ConvertFrom-Json).number
             gh pr edit $prNum --body-file $bodyFile
           } else {

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Accepted |
+| **Status** | Implemented (#13) |
 | **Owner** | TBA |
 | **Last updated** | 2026-05-21 |
 | **Implementation PR** | [#13](https://github.com/TemplateMechanics/dt-pilot/pull/13) |

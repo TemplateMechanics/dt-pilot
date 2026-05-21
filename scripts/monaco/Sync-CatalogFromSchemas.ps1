@@ -489,15 +489,19 @@ foreach ($id in $unresolved) {
 }
 
 # Whole-environment-unreachable heuristic: if NOT A SINGLE schema
-# resolved AND we hit at least one fatal exception, treat the cron as
-# a no-op rather than producing a refresh PR full of placeholders or
-# deletions. (We check $resolvedCount, not $entries.Count, because the
-# placeholder loop above may have added entries even when zero schemas
-# actually resolved.)
+# resolved AND at least one ID was attempted, treat the cron as a
+# no-op rather than producing a refresh PR full of placeholders /
+# deletions. The earlier version gated on $envFailureCount > 0, but
+# Get-SchemaForId converts the common failure modes (non-zero monaco
+# exit, empty stdout, non-JSON stdout) to $null without throwing -- so
+# a complete outage often leaves $envFailureCount = 0 yet
+# $resolvedCount = 0. Gating on $resolvedCount alone is the only
+# correct check.
 # Split into intermediate booleans -- PS 5.1's @($list).Count combined
 # with -and inside a single if-expression can trip 'Argument types do
 # not match' depending on the list's runtime shape.
-$shouldBailOut = ($resolvedCount -eq 0) -and ($envFailureCount -gt 0)
+$attemptedCount = @($schemaIds).Count
+$shouldBailOut  = ($resolvedCount -eq 0) -and ($attemptedCount -gt 0)
 if ($shouldBailOut) {
     Write-Diag "ZERO schemas resolved AND fatal fetch errors observed; assuming environment unreachable. Exiting 0 without changes per Design 002."
     exit 0
@@ -514,7 +518,11 @@ Write-Host ("  unresolvable: {0}" -f (@($diff.Unresolvable).Count))
 if (@($diff.Added).Count -gt 0)        { Write-Host "  + new schemas (family: misc until reassigned):";   foreach ($x in $diff.Added)        { Write-Host "      $x" } }
 if (@($diff.Removed).Count -gt 0)      { Write-Host "  - schemas removed from inputs:";                    foreach ($x in $diff.Removed)      { Write-Host "      $x" } }
 if (@($diff.Changed).Count -gt 0)      { Write-Host "  ~ schemas with refreshed summary/liveFields:";      foreach ($x in $diff.Changed)      { Write-Host "      $x" } }
-if (@($diff.Unresolvable).Count -gt 0) { Write-Host "  ! schemas not resolvable upstream (kept as-is):";   foreach ($x in $diff.Unresolvable) { Write-Host "      $x" } }
+if (@($diff.Unresolvable).Count -gt 0) {
+    Write-Host "  ! schemas not resolvable upstream this run:"
+    Write-Host "    (existing entries preserved unchanged; brand-new IDs got a TODO placeholder under family: misc)"
+    foreach ($x in $diff.Unresolvable) { Write-Host "      $x" }
+}
 
 # Re-include unresolvable entries from the existing catalog so a transient
 # upstream blip doesn't accidentally remove a curated entry from the
