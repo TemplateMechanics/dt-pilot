@@ -275,9 +275,45 @@ function ConvertTo-StrictJsonString {
 
 function ConvertTo-StrictJsonStringArray {
     [CmdletBinding()]
-    param([string[]] $Values)
-    if ($null -eq $Values -or $Values.Count -eq 0) { return '[]' }
-    return '[' + (($Values | ForEach-Object { ConvertTo-StrictJsonString $_ }) -join ',') + ']'
+    param([AllowNull()] $Values)
+    if ($null -eq $Values) { return '[]' }
+    # Drop null elements so a re-emitted existing entry whose source
+    # had no liveFields field doesn't serialize as [null]. (When the
+    # caller does @($obj.missingProperty), PowerShell produces a
+    # one-element array containing $null.)
+    $clean = @($Values | Where-Object { $null -ne $_ -and $_ -ne '' })
+    if ($clean.Count -eq 0) { return '[]' }
+    return '[' + (($clean | ForEach-Object { ConvertTo-StrictJsonString ([string]$_) }) -join ',') + ']'
+}
+
+function Get-EntryField {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Entry,
+        [Parameter(Mandatory)] [string] $Name,
+        $Default = $null
+    )
+    # Field access that works for BOTH the [ordered]@{} (OrderedDictionary)
+    # entries built by New-CatalogEntryFromSchema AND the [pscustomobject]
+    # entries loaded from the existing catalog via ConvertFrom-Json.
+    # The two types expose membership differently: dictionaries via
+    # .Contains(name), pscustomobjects via .PSObject.Properties.
+    if ($null -eq $Entry) { return $Default }
+    if ($Entry -is [System.Collections.IDictionary]) {
+        if ($Entry.Contains($Name)) {
+            $val = $Entry[$Name]
+            if ($null -eq $val) { return $Default }
+            return $val
+        }
+        return $Default
+    }
+    $names = @($Entry.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($names -contains $Name) {
+        $val = $Entry.$Name
+        if ($null -eq $val) { return $Default }
+        return $val
+    }
+    return $Default
 }
 
 function Format-CatalogJson {
@@ -303,14 +339,25 @@ function Format-CatalogJson {
     $entryArr = @($Entries)
     for ($i = 0; $i -lt $entryArr.Count; $i++) {
         $entry = $entryArr[$i]
+        # Use Get-EntryField so a re-emitted existing entry that lacks
+        # liveFields (or commonParameters, or any other optional field)
+        # serializes as [] instead of [null] / throws.
+        $idVal      = [string](Get-EntryField -Entry $entry -Name 'id'          -Default '')
+        $familyVal  = [string](Get-EntryField -Entry $entry -Name 'family'      -Default 'misc')
+        $displayVal = [string](Get-EntryField -Entry $entry -Name 'displayName' -Default $idVal)
+        $scopeVal   = [string](Get-EntryField -Entry $entry -Name 'scope'       -Default 'environment')
+        $summaryVal = [string](Get-EntryField -Entry $entry -Name 'summary'     -Default '')
+        $commonArr  =        (Get-EntryField -Entry $entry -Name 'commonParameters' -Default @())
+        $liveArr    =        (Get-EntryField -Entry $entry -Name 'liveFields'       -Default @())
+
         $null = $sb.Append('    {').Append("`n")
-        $null = $sb.Append('      "id": ').Append((ConvertTo-StrictJsonString $entry.id)).Append(',').Append("`n")
-        $null = $sb.Append('      "family": ').Append((ConvertTo-StrictJsonString $entry.family)).Append(',').Append("`n")
-        $null = $sb.Append('      "displayName": ').Append((ConvertTo-StrictJsonString $entry.displayName)).Append(',').Append("`n")
-        $null = $sb.Append('      "scope": ').Append((ConvertTo-StrictJsonString $entry.scope)).Append(',').Append("`n")
-        $null = $sb.Append('      "summary": ').Append((ConvertTo-StrictJsonString $entry.summary)).Append(',').Append("`n")
-        $null = $sb.Append('      "commonParameters": ').Append((ConvertTo-StrictJsonStringArray @($entry.commonParameters))).Append(',').Append("`n")
-        $null = $sb.Append('      "liveFields": ').Append((ConvertTo-StrictJsonStringArray @($entry.liveFields))).Append("`n")
+        $null = $sb.Append('      "id": ').Append((ConvertTo-StrictJsonString $idVal)).Append(',').Append("`n")
+        $null = $sb.Append('      "family": ').Append((ConvertTo-StrictJsonString $familyVal)).Append(',').Append("`n")
+        $null = $sb.Append('      "displayName": ').Append((ConvertTo-StrictJsonString $displayVal)).Append(',').Append("`n")
+        $null = $sb.Append('      "scope": ').Append((ConvertTo-StrictJsonString $scopeVal)).Append(',').Append("`n")
+        $null = $sb.Append('      "summary": ').Append((ConvertTo-StrictJsonString $summaryVal)).Append(',').Append("`n")
+        $null = $sb.Append('      "commonParameters": ').Append((ConvertTo-StrictJsonStringArray $commonArr)).Append(',').Append("`n")
+        $null = $sb.Append('      "liveFields": ').Append((ConvertTo-StrictJsonStringArray $liveArr)).Append("`n")
         $suffix = if ($i -lt ($entryArr.Count - 1)) { '    },' } else { '    }' }
         $null = $sb.Append($suffix).Append("`n")
     }

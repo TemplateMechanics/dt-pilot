@@ -143,7 +143,12 @@ jobs:
           $commitFile = Join-Path $env:RUNNER_TEMP 'commit-msg.txt'
           $commitMsg | Set-Content -LiteralPath $commitFile -Encoding utf8 -NoNewline
           git commit --file $commitFile
-          git push --force --set-upstream origin $branch
+          # --force-with-lease (not --force) so a human pushing review
+          # fixes onto the auto-PR branch isn't silently clobbered by a
+          # subsequent schedule / workflow_dispatch re-run. If the lease
+          # check fails, the workflow exits non-zero and an operator
+          # decides whether to abandon the in-flight review or rebase.
+          git push --force-with-lease --set-upstream origin $branch
 
           # Build the PR body. Same indent-stripping pattern.
           $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"

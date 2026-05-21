@@ -654,6 +654,64 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
         }
     }
 
+    It 'serializes an unresolvable existing entry as [] (not [null]) when the seed lacks liveFields' {
+        # Models the realistic case: the committed catalog today has NO
+        # liveFields field (it lands with this PR), so re-emitting an
+        # unresolvable existing entry must coerce missing arrays to []
+        # rather than [null]. Regression for the Format-CatalogJson
+        # null-handling bug Copilot caught on PR #13 pass 2.
+        $partialStub = {
+            param([string] $SchemaId)
+            if ($SchemaId -eq 'builtin:slo') { return $null }
+            return [pscustomobject]@{
+                description = "ok"
+                properties  = [pscustomobject]@{ x = @{ type = 'string' } }
+            }
+        }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo')
+        $out    = New-TempOutputPath
+        # Note: no 'liveFields' key in the SLO entry below.
+        $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    {
+      "id": "builtin:management-zones",
+      "family": "topology",
+      "displayName": "Management Zone",
+      "scope": "environment",
+      "summary": "Old summary.",
+      "commonParameters": ["zoneName"]
+    },
+    {
+      "id": "builtin:slo",
+      "family": "alerting",
+      "displayName": "Service Level Objective",
+      "scope": "environment",
+      "summary": "Curated SLO summary without any liveFields field.",
+      "commonParameters": ["sloName"]
+    }
+  ]
+}
+'@
+        [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $partialStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $body = [System.IO.File]::ReadAllText($out)
+            $body | Should -Not -Match '\[null\]'
+            $body | Should -Not -Match '"liveFields":\s*null'
+            # Parse and confirm the unresolvable entry has an empty liveFields array.
+            $parsed = $body | ConvertFrom-Json
+            $slo = $parsed.schemas | Where-Object { $_.id -eq 'builtin:slo' }
+            @($slo.liveFields).Count | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It 'preserves an existing entry intact when its schema is unresolvable upstream' {
         # Seed an existing catalog with a curated entry for an ID that
         # the stub will say is unresolvable. The entry must survive the
