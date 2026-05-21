@@ -1,6 +1,6 @@
 # Reflected Config Catalog — Coverage Doctrine
 
-The reflected config catalog (`config/catalog/catalog.settings.json` + the generated `modules/configs/<family>/<id>/` scaffolds) is dt-pilot's curated inventory of Dynatrace configuration types we ship a starting-point scaffold for. This document is the canonical doctrine for what belongs in the catalog, what the scaffolds guarantee, and how the sync check works.
+The reflected config catalog (`config/catalog/catalog.settings.json` + the generated `modules/configs/<family>/<safe-id>/` scaffolds) is dt-pilot's curated inventory of Dynatrace configuration types we ship a starting-point scaffold for. This document is the canonical doctrine for what belongs in the catalog, what the scaffolds guarantee, and how the sync check works.
 
 ## What the catalog is — and isn't
 
@@ -13,6 +13,18 @@ The reflected config catalog (`config/catalog/catalog.settings.json` + the gener
 - A complete reflection of every Dynatrace schema. Dynatrace has hundreds; the catalog covers the most commonly authored ones plus a representative cross-section of families.
 - A substitute for `monaco generate schema` when authoring a real config. The scaffolds intentionally use a placeholder `template.json` body — you replace it with the live schema-derived payload when you adopt the scaffold.
 - A guarantee that a scaffold is currently valid against the live Dynatrace API. Schemas evolve; periodic regeneration against new releases is expected.
+
+## The `<safe-id>` transformation
+
+The catalog entry's `id` is a Dynatrace schema identifier (e.g. `builtin:problem.notifications` or `builtin:problem.notifications/email`) that contains `:` and `/`, neither of which is safe in every filesystem path. The generator transforms `id` to `<safe-id>` by replacing both characters with `-`:
+
+| Catalog `id` | On-disk `<safe-id>` |
+|---|---|
+| `builtin:management-zones` | `builtin-management-zones` |
+| `builtin:problem.notifications` | `builtin-problem.notifications` |
+| `builtin:problem.notifications/email` | `builtin-problem.notifications-email` |
+
+This is one-way; the generator owns the transformation. Don't try to author a config in a directory named with the raw `id` — the sync check would flag it as an orphan.
 
 ## What's in the catalog today
 
@@ -54,7 +66,7 @@ The check is byte-exact, so even whitespace changes count. Always go through `Sy
 
 ## What a scaffold guarantees
 
-Every `modules/configs/<family>/<id>/` directory contains three files:
+Every `modules/configs/<family>/<safe-id>/` directory contains three files:
 
 | File | Purpose |
 |---|---|

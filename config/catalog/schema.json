@@ -46,8 +46,12 @@
         },
         "commonParameters": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "Parameter names the generator should pre-declare in the scaffold's config.yaml. The user fills in values when adopting the scaffold."
+          "uniqueItems": true,
+          "description": "Parameter names the generator should pre-declare in the scaffold's config.yaml. The user fills in values when adopting the scaffold. Each entry is interpolated into a YAML key and a JSON property name, so it must match the parameter-name pattern (start with a letter, contain only letters, digits, and underscores).",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,62}$"
+          }
         }
       }
     }

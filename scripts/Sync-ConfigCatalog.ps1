@@ -69,6 +69,16 @@ function Write-Utf8NoBom {
 $catalogRaw = [System.IO.File]::ReadAllText($catalogPath, $script:Utf8NoBom)
 $catalog = $catalogRaw | ConvertFrom-Json
 
+# Validate the catalog has the shape we expect BEFORE producing zero
+# scaffolds and reporting a misleading "in sync (0 entries)" -Check pass.
+if (-not $catalog.PSObject.Properties['schemas'] -or $null -eq $catalog.schemas) {
+    throw "Catalog at $catalogPath has no 'schemas' field. The catalog schema requires a non-empty schemas array."
+}
+$schemasArr = @($catalog.schemas)
+if ($schemasArr.Count -eq 0) {
+    throw "Catalog at $catalogPath has an empty 'schemas' array. Add at least one entry, or delete modules/configs/ if you genuinely intend to ship no scaffolds."
+}
+
 function ConvertTo-SafeName {
     param([string] $Id)
     # Convert 'builtin:problem.notifications/email' -> 'builtin-problem.notifications-email'.

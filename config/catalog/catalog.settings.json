@@ -1,6 +1,6 @@
 {
   "$schema": "./schema.json",
-  "_comment": "Reflected catalog of Dynatrace settings 2.0 schemas and classic-API config types that dt-pilot ships scaffolds for. Sync-ConfigCatalog.ps1 reads this file and regenerates modules/configs/<id>/ from each entry. Keep the catalog minimal and curated — adding an entry is a deliberate decision to support that config type with a scaffold; new entries land in a focused PR with the regenerated module in the same commit.",
+  "_comment": "Reflected catalog of Dynatrace settings 2.0 schemas and classic-API config types that dt-pilot ships scaffolds for. Sync-ConfigCatalog.ps1 reads this file and regenerates modules/configs/<family>/<safe-id>/ from each entry (where <safe-id> is the entry's id with ':' and '/' replaced by '-' — see docs/CONFIG-COVERAGE.md). Keep the catalog minimal and curated; adding an entry is a deliberate decision to support that config type with a scaffold, and new entries land in a focused PR with the regenerated module in the same commit.",
   "version": "1.0",
   "schemas": [
     {
