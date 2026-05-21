@@ -209,7 +209,9 @@ function Write-DryRunMetadata {
         [Parameter(Mandatory)] [string] $Environment,
         [Parameter(Mandatory)] [string] $MonacoExe,
         [Parameter(Mandatory)] [int]    $ExitCode,
-        [Parameter(Mandatory)] [string] $RawOutput
+        # Empty output is legitimate for a clean dry-run on an empty manifest,
+        # so accept the empty string explicitly.
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $RawOutput
     )
 
     $manifestHash  = (Get-FileHash -LiteralPath $ManifestPath -Algorithm SHA256).Hash

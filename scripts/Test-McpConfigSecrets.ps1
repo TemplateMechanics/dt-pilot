@@ -68,10 +68,12 @@ if ($StagedOnly) {
     $main = Join-Path $repoRoot '.vscode/mcp.json'
     if (Test-Path -LiteralPath $main) { $targets += $main }
     # Never scan the gitignored session file.
-    $targets = $targets | Where-Object { $_ -notmatch 'mcp\.session(\..*)?\.json$' }
+    # Wrap in @(...) to keep $targets as an array even when Where-Object
+    # reduces to zero or one element under strict mode.
+    $targets = @($targets | Where-Object { $_ -notmatch 'mcp\.session(\..*)?\.json$' })
 }
 
-if (-not $targets) {
+if (-not $targets -or @($targets).Count -eq 0) {
     Write-Host "No MCP config files to scan." -ForegroundColor DarkGray
     exit 0
 }
@@ -160,5 +162,6 @@ if ($findings.Count -gt 0) {
     exit 1
 }
 
-Write-Host "MCP secret-hygiene scan passed for $($targets.Count) file(s)." -ForegroundColor Green
+$count = @($targets).Count   # coerce — strict mode rejects .Count on a scalar
+Write-Host "MCP secret-hygiene scan passed for $count file(s)." -ForegroundColor Green
 exit 0
