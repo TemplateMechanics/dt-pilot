@@ -43,16 +43,49 @@ Run `./scripts/monaco/Sync-ConfigCatalog.ps1` after editing the catalog and comm
 
 ## How to add an entry
 
-1. Edit `config/catalog/catalog.settings.json` and add a new object to the `schemas` array. Required fields:
+The fast path is `config/catalog/schemas.txt`:
+
+1. Append the new Dynatrace schema ID to `config/catalog/schemas.txt`. One ID per line; lines starting with `#` are comments.
+2. The next weekly catalog-refresh cron (see [Scheduled refresh](#scheduled-refresh)) will pick it up automatically and open a PR with the new entry under `family: misc` plus a populated `liveFields` array. Reassign the `family` and curate `commonParameters` in that PR before merging.
+3. **You can also refresh on demand** locally:
+
+   ```powershell
+   ./scripts/monaco/Sync-CatalogFromSchemas.ps1 -WhatIf   # preview the diff
+   ./scripts/monaco/Sync-CatalogFromSchemas.ps1           # write catalog.settings.json
+   ./scripts/monaco/Sync-ConfigCatalog.ps1                # regenerate scaffolds
+   ```
+
+If you want to land the catalog entry by hand (no cron wait, fully curated values up front), edit `config/catalog/catalog.settings.json` directly:
+
+1. Add a new object to the `schemas` array. Required fields:
    - `id` — the Dynatrace schema ID (`builtin:...`) or a `parent/subtype` pair for per-channel notifications.
    - `family` — one of `topology`, `alerting`, `visualization`, `automation`, `security`, `account`, `misc`.
    - `displayName` — short human-readable name.
    - `scope` — `environment` is the right default; override only if the schema is host- / process-group- / entity-scoped by nature.
    - `summary` — one or two sentences. This text shows up in the generated `SCAFFOLD.md`.
    - `commonParameters` *(optional)* — the parameter names the generator should pre-declare in the scaffold's `config.yaml`. Pick the parameters you'd genuinely want to be named (a `name`, a reference to another config, a numeric threshold) — not every field of the underlying schema.
-2. Run `./scripts/monaco/Sync-ConfigCatalog.ps1` (no `-Check`) to regenerate the modules.
-3. Commit both the catalog edit and the regenerated `modules/configs/...` files in the same PR.
-4. The pre-commit gate (`Pre-Commit.ps1`) and CI's pre-commit-gate job run `Sync-ConfigCatalog.ps1 -Check`, which fails the PR if the modules drift from what the catalog would produce.
+   - `liveFields` *(optional)* — informational; populated by the refresh cron. Leave empty when authoring by hand.
+2. Add the matching row to `config/catalog/schemas.txt` so the next refresh keeps the entry in sync.
+3. Run `./scripts/monaco/Sync-ConfigCatalog.ps1` (no `-Check`) to regenerate the modules.
+4. Commit the catalog edit, the inputs-file edit, and the regenerated `modules/configs/...` files in the same PR.
+5. The pre-commit gate (`Pre-Commit.ps1`) and CI's pre-commit-gate job run `Sync-ConfigCatalog.ps1 -Check`, which fails the PR if the modules drift from what the catalog would produce.
+
+## Scheduled refresh
+
+`.github/workflows/catalog-refresh.yml` runs every Monday at 06:17 UTC (plus on-demand via `workflow_dispatch`) and refreshes `summary` + `liveFields` for every schema in `schemas.txt`. The job runs in a gated GitHub Actions environment named `catalog-refresh`, which must carry:
+
+- `vars.DT_ENVIRONMENT` — the Dynatrace platform URL (read-only target).
+- `secrets.DT_PLATFORM_TOKEN` — a platform token scoped to `settings:schemas:read` only. Generate via the standard token-provisioning flow in [`AUTHENTICATION.md`](AUTHENTICATION.md) and grant ONLY the read scope.
+
+If the gated environment is unconfigured (no `DT_ENVIRONMENT`, no `DT_PLATFORM_TOKEN`), the workflow exits cleanly with a warning instead of failing — the first `workflow_dispatch` run is a safe smoke test.
+
+When the refresh finds any drift, the workflow:
+
+1. Creates branch `chore/catalog-refresh-<YYYY-MM-DD>`.
+2. Commits the regenerated `config/catalog/catalog.settings.json` and `modules/configs/`.
+3. Opens an auto-PR with `@copilot` review requested. **Never auto-merges.**
+
+A human (or future agent) reviews the diff, reassigns `family: misc` to the correct family for any newly-added schemas, and squash-merges. See `docs/design/SCHEDULED-CATALOG-REFRESH.md` for the design.
 
 ## What `-Check` enforces
 

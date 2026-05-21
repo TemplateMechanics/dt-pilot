@@ -1,0 +1,261 @@
+name: catalog-refresh
+
+# Weekly refresh of config/catalog/catalog.settings.json from live
+# Dynatrace settings 2.0 schemas. Implements Design 002 -- see
+# docs/design/SCHEDULED-CATALOG-REFRESH.md.
+#
+# Concretely: read config/catalog/schemas.txt, call `monaco generate
+# schema` for each ID, update summary + liveFields, preserve family +
+# commonParameters, regenerate modules/configs/. If anything changed,
+# open an auto-PR with @copilot review requested. NEVER auto-merge.
+#
+# Runs in a gated GitHub Actions environment (catalog-refresh) that
+# carries the read-only Dynatrace credentials needed to call
+# `monaco generate schema`. The environment requires reviewer approval
+# on its secrets per repo settings; if it isn't configured, the
+# workflow exits early with a clear message instead of failing.
+
+on:
+  schedule:
+    - cron: '17 6 * * MON'   # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write          # to push the refresh branch
+  pull-requests: write     # to open the auto-PR
+
+jobs:
+  refresh:
+    name: Refresh catalog from live schemas
+    runs-on: ubuntu-latest
+    environment: catalog-refresh   # gated; carries DT_ENVIRONMENT + DT_PLATFORM_TOKEN
+    env:
+      # Update MONACO_VERSION and MONACO_SHA256 together. To rotate:
+      #   1. Pick a release at https://github.com/Dynatrace/dynatrace-configuration-as-code/releases
+      #   2. Download monaco-linux-amd64.sha256 from that release
+      #   3. Paste the sha256 string here, bump MONACO_VERSION to match
+      # The Install step below verifies the downloaded binary against
+      # this SHA-256 and refuses to run on mismatch, so a typo or
+      # tampering surfaces loudly rather than silently mis-deploying.
+      MONACO_VERSION: '2.18.0'
+      MONACO_SHA256: 'a16d98a5e6be8f6e2d1af5e6083505e02488b3edfb6ccd4a069bffd8bd3921f2'
+      # Surface credentials by their canonical harness names so
+      # Sync-CatalogFromSchemas.ps1's Resolve-MonacoExe + monaco
+      # invocation pick them up without any extra plumbing.
+      DT_ENVIRONMENT:      ${{ vars.DT_ENVIRONMENT }}
+      DT_PLATFORM_TOKEN:   ${{ secrets.DT_PLATFORM_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history so the auto-PR branch is creatable from main
+          # Pin to main explicitly so a workflow_dispatch run against a
+          # feature branch can't accidentally seed the refresh PR with
+          # unrelated commits. The refresh PR always targets main, so the
+          # base it's built from must also be main.
+          ref: main
+
+      - name: Validate gated-environment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DT_ENVIRONMENT}" ] || [ -z "${DT_PLATFORM_TOKEN}" ]; then
+            echo "::warning::catalog-refresh environment is missing DT_ENVIRONMENT or DT_PLATFORM_TOKEN; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        id: gate
+
+      - name: Install Monaco (checksum-verified)
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSL --fail -o /tmp/monaco "https://github.com/Dynatrace/dynatrace-configuration-as-code/releases/download/v${MONACO_VERSION}/monaco-linux-amd64"
+          actual=$(sha256sum /tmp/monaco | awk '{print $1}')
+          if [ "${actual}" != "${MONACO_SHA256}" ]; then
+            echo "::error::Monaco binary checksum mismatch (expected ${MONACO_SHA256}, got ${actual}). Refusing to run."
+            exit 1
+          fi
+          chmod +x /tmp/monaco
+          echo "MONACO_EXE=/tmp/monaco" >> "$GITHUB_ENV"
+
+      - name: Configure git identity for the refresh branch
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          git config user.name  "dt-pilot-catalog-refresh[bot]"
+          git config user.email "dt-pilot-catalog-refresh@users.noreply.github.com"
+
+      - name: Run the catalog refresh
+        if: steps.gate.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          # Refresh catalog summary + liveFields, then regenerate the
+          # modules/configs/ scaffolds so the byte-exact -Check downstream
+          # stays valid.
+          ./scripts/monaco/Sync-CatalogFromSchemas.ps1
+          ./scripts/monaco/Sync-ConfigCatalog.ps1
+
+      - name: Detect changes
+        if: steps.gate.outputs.skip != 'true'
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Diff scope and commit scope MUST match exactly, otherwise a
+          # file that changes but isn't staged would cause every weekly
+          # run to detect drift and open a PR that doesn't carry the
+          # change. The refresh script touches only config/catalog/ and
+          # modules/configs/.
+          # Use 'git status --porcelain' (not 'git diff --quiet') because
+          # the refresh can create new scaffold directories for a new
+          # schema; git diff alone ignores untracked files.
+          changed=$(git status --porcelain -- config/catalog/ modules/configs/ | head -c 1)
+          if [ -z "$changed" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No catalog drift; not opening a refresh PR."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager status --short -- config/catalog/ modules/configs/
+          fi
+
+      - name: Branch, commit, push, open PR
+        if: steps.gate.outputs.skip != 'true' && steps.diff.outputs.changed == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Pwsh 7+ knob that promotes non-zero exit codes from native
+          # commands (git, gh) to terminating errors. Without this,
+          # $ErrorActionPreference = 'Stop' applies only to PowerShell
+          # cmdlet errors and a 'git stash pop' merge conflict would
+          # silently leave a half-applied tree to commit + push.
+          $PSNativeCommandUseErrorActionPreference = $true
+          $date    = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+          $branch  = "chore/catalog-refresh-$date"
+
+          # If the refresh branch already exists on origin (workflow_dispatch
+          # re-run, or a human pushed review fixes onto a prior auto-PR
+          # branch), check it out from the remote AND keep the refreshed
+          # working-tree changes on top. Two reasons:
+          #   1. 'git checkout -b $branch' alone would always branch from
+          #      the current HEAD (main), losing any human commits on the
+          #      remote refresh branch.
+          #   2. 'git push --force-with-lease' is only safe when we have
+          #      a remote-tracking ref for the branch -- without it, the
+          #      lease is empty and degrades to an unconditional --force.
+          git fetch origin --quiet
+          $remoteRef = "refs/remotes/origin/$branch"
+          $remoteExists = (git for-each-ref --format='%(refname)' $remoteRef | Out-String).Trim().Length -gt 0
+          if ($remoteExists) {
+            Write-Host "Refresh branch $branch already exists on origin; rebasing local changes on top."
+            # Stash the working-tree changes, fast-forward to the remote
+            # branch, then pop. Conflicts here mean a human edited the
+            # same files the refresh wants to touch -- we exit non-zero
+            # so the operator decides.
+            git stash push --include-untracked --message "catalog-refresh-pending"
+            git checkout -B $branch "origin/$branch"
+            git stash pop
+          } else {
+            git checkout -b $branch
+          }
+          # Stage exactly the directories the Detect step diffed.
+          git add config/catalog/ modules/configs/
+          # Write the commit message to a file so bash heredoc rules don't
+          # intersect with YAML's block-scalar indentation rules.
+          $commitMsg = @"
+          chore(catalog): refresh reflected schemas - $date
+
+          Auto-generated by .github/workflows/catalog-refresh.yml.
+
+          Refreshes config/catalog/catalog.settings.json from live Dynatrace
+          settings 2.0 schemas listed in config/catalog/schemas.txt:
+          - summary and liveFields are updated from 'monaco generate schema'
+          - family and commonParameters are preserved from the prior catalog
+          - modules/configs/ regenerated via Sync-ConfigCatalog.ps1
+
+          Reviewer: verify any 'misc' family on new schemas is reassigned,
+          then squash-merge.
+          "@
+          # Strip the leading indentation each line picks up from the YAML
+          # block scalar (10 spaces).
+          $commitMsg = ($commitMsg -split "`n" | ForEach-Object { $_ -replace '^ {10}', '' }) -join "`n"
+          $commitFile = Join-Path $env:RUNNER_TEMP 'commit-msg.txt'
+          $commitMsg | Set-Content -LiteralPath $commitFile -Encoding utf8 -NoNewline
+          git commit --file $commitFile
+          if ($remoteExists) {
+            # --force-with-lease against the explicit fetched ref. The
+            # lease tells git "only force-push if origin/$branch still
+            # points at what we fetched"; a human pushing a commit
+            # between our fetch and our push aborts the push, exits the
+            # workflow non-zero, and lets an operator decide whether to
+            # abandon the in-flight review or rebase.
+            git push "--force-with-lease=$branch:refs/remotes/origin/$branch" --set-upstream origin $branch
+          } else {
+            # First-time push for this branch. No remote ref exists yet
+            # so a plain push is safe and a force is unnecessary.
+            git push --set-upstream origin $branch
+          }
+
+          # Build the PR body. Same indent-stripping pattern.
+          # Redact DT_ENVIRONMENT to hostname-only -- the tenant URL is
+          # semi-sensitive (identifies a customer / internal env) and
+          # the PR body is permanent + indexable.
+          $dtHost = '(redacted)'
+          if ($env:DT_ENVIRONMENT) {
+            try { $dtHost = ([uri]$env:DT_ENVIRONMENT).Host } catch { $dtHost = '(unparseable)' }
+          }
+          $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $prBody = @"
+          ## Auto-generated catalog refresh
+
+          | Field | Value |
+          |---|---|
+          | Trigger | ``$env:GITHUB_EVENT_NAME`` |
+          | Source environment host | ``$dtHost`` |
+          | Monaco version | ``$env:MONACO_VERSION`` |
+          | Run | [#$env:GITHUB_RUN_ID]($runUrl) |
+
+          ### Diff scope
+
+          Only ``config/catalog/catalog.settings.json`` and ``modules/configs/`` should change. Anything else means the workflow needs review.
+
+          ### Reviewer checklist
+
+          - [ ] Diffstat looks mechanical (no surprise structural changes)
+          - [ ] Any new schemas have been assigned the right ``family`` (not ``misc``)
+          - [ ] Any ``liveFields`` differences are upstream Dynatrace changes, not a workflow regression
+          - [ ] CI is green (the byte-exact catalog ``-Check`` validates the regen)
+          - [ ] No leaked tenant URLs / tokens (``Test-McpConfigSecrets.ps1`` would catch this, but eyeball it too)
+
+          Generated by [``.github/workflows/catalog-refresh.yml``](.github/workflows/catalog-refresh.yml).
+          "@
+          $prBody = ($prBody -split "`n" | ForEach-Object { $_ -replace '^ {10}', '' }) -join "`n"
+          $bodyFile = Join-Path $env:RUNNER_TEMP 'pr-body.md'
+          $prBody | Set-Content -LiteralPath $bodyFile -Encoding utf8
+
+          # Reuse an existing open PR on this branch if there is one;
+          # otherwise create. Either way, request @copilot review.
+          # gh pr view exits non-zero when no PR exists, which with
+          # $PSNativeCommandUseErrorActionPreference=true would throw
+          # and abort the workflow. Catch that here so the no-PR case
+          # routes to the create path normally.
+          $existing = $null
+          try {
+            $existing = (gh pr view $branch --json number 2>$null)
+          } catch {
+            $existing = $null
+          }
+          if ($existing) {
+            $prNum = ($existing | ConvertFrom-Json).number
+            gh pr edit $prNum --body-file $bodyFile
+          } else {
+            gh pr create --base main --head $branch `
+              --title "chore(catalog): refresh reflected schemas - $date" `
+              --body-file $bodyFile
+            $prNum = (gh pr view $branch --json number | ConvertFrom-Json).number
+          }
+          gh pr edit $prNum --add-reviewer "@copilot"

@@ -466,6 +466,399 @@ Describe 'config/catalog/backends.json' {
     }
 }
 
+Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
+    BeforeAll {
+        $script:RefreshScript = Join-Path $script:MonacoDir 'Sync-CatalogFromSchemas.ps1'
+        $script:StubFetcher = {
+            param([string] $SchemaId)
+            return [pscustomobject]@{
+                description = "Stubbed description for $SchemaId."
+                properties = [pscustomobject]@{
+                    name           = @{ type = 'string' }
+                    managementZone = @{ type = 'string' }
+                    enabled        = @{ type = 'boolean' }
+                }
+            }
+        }
+
+        function New-TempInputsFile {
+            param([string[]] $Ids)
+            $p = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-inputs-" + [System.Guid]::NewGuid().ToString('N') + ".txt")
+            $lines = @('# test inputs') + $Ids + @('')
+            [System.IO.File]::WriteAllLines($p, $lines)
+            return $p
+        }
+
+        function New-TempOutputPath {
+            return (Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-out-" + [System.Guid]::NewGuid().ToString('N') + ".json"))
+        }
+    }
+
+    It 'writes a catalog and the output round-trips through ConvertFrom-Json' {
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:alerting.profile')
+        $out    = New-TempOutputPath
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            (Test-Path -LiteralPath $out) | Should -BeTrue
+            $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+            @($parsed.schemas).Count | Should -Be 2
+            $parsed.schemas[0].id     | Should -Be 'builtin:management-zones'
+            $parsed.schemas[1].id     | Should -Be 'builtin:alerting.profile'
+            $parsed.schemas[0].family | Should -Be 'misc'   # new schema -> family: misc
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'preserves curated family and commonParameters from the existing catalog' {
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones')
+        $out    = New-TempOutputPath
+        try {
+            # Seed an existing catalog with a curated entry.
+            $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    {
+      "id": "builtin:management-zones",
+      "family": "topology",
+      "displayName": "Management Zone",
+      "scope": "environment",
+      "summary": "Hand-curated summary that should be overwritten by the refresh.",
+      "commonParameters": ["zoneName"]
+    }
+  ]
+}
+'@
+            [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+            $parsed.schemas[0].family            | Should -Be 'topology'
+            $parsed.schemas[0].displayName       | Should -Be 'Management Zone'
+            @($parsed.schemas[0].commonParameters) | Should -Be @('zoneName')
+            # Summary refreshed from the stub:
+            $parsed.schemas[0].summary | Should -Be 'Stubbed description for builtin:management-zones.'
+            # liveFields populated from the stub's properties:
+            @($parsed.schemas[0].liveFields) -join ',' | Should -Be 'enabled,managementZone,name'
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'is byte-deterministic: same inputs -> same output across two runs' {
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:alerting.profile','builtin:slo')
+        $out1   = New-TempOutputPath
+        $out2   = New-TempOutputPath
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out1 -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out2 -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
+            (Get-FileHash -LiteralPath $out1 -Algorithm SHA256).Hash | Should -Be (Get-FileHash -LiteralPath $out2 -Algorithm SHA256).Hash
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out1   -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out2   -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'emits raw <> characters (no HTML escapes) in the output' {
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones')
+        $out    = New-TempOutputPath
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
+            $body = [System.IO.File]::ReadAllText($out)
+            # The _comment string in the formatted catalog contains the
+            # literal path templates '<family>' and '<safe-id>'. The
+            # strict serializer (ConvertTo-StrictJsonString) emits the
+            # raw '<' / '>' bytes; PowerShell's built-in ConvertTo-Json
+            # would have escaped them to the JSON unicode-escape form
+            # '<' / '>'. The assertions below lock in the
+            # strict-serializer behavior: the raw brackets MUST be
+            # present, and the '<' escaped form MUST NOT be. If
+            # the second assertion ever fires, a ConvertTo-Json call
+            # snuck back into the JSON serialization path.
+            $body | Should -Match '<family>'
+            $body | Should -Match '<safe-id>'
+            $body | Should -Not -Match '\\u003c'
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It '-WhatIf does not write the output file' {
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones')
+        $out    = New-TempOutputPath
+        try {
+            & $script:RefreshScript -WhatIf -InputsPath $inputs -OutputPath $out -FetchSchemaScript $script:StubFetcher *>&1 | Out-Null
+            (Test-Path -LiteralPath $out) | Should -BeFalse
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects an inputs file with an invalid schema ID' {
+        $bad = New-TempInputsFile -Ids @('builtin:management-zones','INVALID UPPER CASE','builtin:slo')
+        $out = New-TempOutputPath
+        try {
+            { & $script:RefreshScript -InputsPath $bad -OutputPath $out -FetchSchemaScript $script:StubFetcher } |
+                Should -Throw -ExpectedMessage '*invalid schema ID*'
+        } finally {
+            Remove-Item -LiteralPath $bad -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects an inputs file with a duplicate schema ID' {
+        $dup = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo','builtin:management-zones')
+        $out = New-TempOutputPath
+        try {
+            { & $script:RefreshScript -InputsPath $dup -OutputPath $out -FetchSchemaScript $script:StubFetcher } |
+                Should -Throw -ExpectedMessage '*duplicate schema ID*'
+        } finally {
+            Remove-Item -LiteralPath $dup -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects an empty inputs file' {
+        $empty = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-inputs-" + [System.Guid]::NewGuid().ToString('N') + ".txt")
+        [System.IO.File]::WriteAllText($empty, "# only comments`n`n# nothing else`n")
+        $out = New-TempOutputPath
+        try {
+            { & $script:RefreshScript -InputsPath $empty -OutputPath $out -FetchSchemaScript $script:StubFetcher } |
+                Should -Throw -ExpectedMessage '*declares zero schema IDs*'
+        } finally {
+            Remove-Item -LiteralPath $empty -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out   -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'continues past per-schema failures and lists them as unresolvable' {
+        # Stub that returns $null for one specific ID (simulating
+        # "schema not resolvable upstream") and a valid schema for others.
+        $partialStub = {
+            param([string] $SchemaId)
+            if ($SchemaId -eq 'builtin:slo') { return $null }
+            return [pscustomobject]@{
+                description = "ok"
+                properties  = [pscustomobject]@{ x = @{ type = 'string' } }
+            }
+        }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo','builtin:alerting.profile')
+        $out    = New-TempOutputPath
+        try {
+            $output = & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $partialStub *>&1
+            $LASTEXITCODE | Should -Be 0
+            ($output -join "`n") | Should -Match 'unresolvable: 1'
+            ($output -join "`n") | Should -Match 'builtin:slo'
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'emits a placeholder entry when an unresolvable schema has no existing entry (no silent drop)' {
+        # Regression test: a brand-new schema ID added to schemas.txt
+        # that the cron cannot resolve must produce a placeholder
+        # catalog entry (family: misc, summary TODO, liveFields: [])
+        # rather than disappearing. Without the placeholder, the
+        # downstream Sync-ConfigCatalog wipe+regen would silently drop
+        # the scaffold dir on the first transient upstream failure.
+        $unresolvableStub = { param([string] $SchemaId) return $null }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:new-schema')
+        $out    = New-TempOutputPath
+        # Seed only the management-zones entry; the new-schema id is brand new.
+        $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    { "id": "builtin:management-zones", "family": "topology", "displayName": "Management Zone", "scope": "environment", "summary": "Curated.", "commonParameters": ["zoneName"] }
+  ]
+}
+'@
+        [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+        try {
+            # All schemas unresolvable; resolvedCount=0 means whole-env-unreachable
+            # bail-out fires. To exercise the placeholder path, mix resolvable and
+            # unresolvable. We override the stub:
+            $mixedStub = {
+                param([string] $SchemaId)
+                if ($SchemaId -eq 'builtin:new-schema') { return $null }
+                return [pscustomobject]@{ description = "ok"; properties = [pscustomobject]@{ x = @{ type = 'string' } } }
+            }
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $mixedStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+            @($parsed.schemas).Count | Should -Be 2
+            $new = $parsed.schemas | Where-Object { $_.id -eq 'builtin:new-schema' }
+            $new                       | Should -Not -BeNullOrEmpty
+            $new.family                | Should -Be 'misc'
+            $new.summary               | Should -Match '^TODO:'
+            @($new.commonParameters).Count | Should -Be 0
+            @($new.liveFields).Count       | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'still bails out when ZERO schemas resolved and fatal failures observed (whole-env-unreachable)' {
+        # The placeholder behavior MUST NOT mask whole-environment-unreachable.
+        # If nothing resolved AND we caught a fatal exception, the cron path
+        # exits 0 with no PR opened. This keeps a Dynatrace incident from
+        # paging weekly via a refresh-PR full of TODOs.
+        $explosiveStub = { param([string] $SchemaId) throw "simulated transport failure" }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo')
+        $out    = New-TempOutputPath
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $explosiveStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            # No file written -- the bail-out exits before ShouldProcess.
+            (Test-Path -LiteralPath $out) | Should -BeFalse
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'serializes an unresolvable existing entry as [] (not [null]) when the seed lacks liveFields' {
+        # Regression test for the Format-CatalogJson null-handling
+        # path: existing catalog entries authored before liveFields
+        # existed don't have that key. When the refresh re-emits such
+        # an entry (because the schema was unresolvable upstream),
+        # the formatter must coerce the missing array to [] instead
+        # of serializing as [null]. Asserts both the parsed shape
+        # AND a regex against the raw bytes for '\[null\]'.
+        $partialStub = {
+            param([string] $SchemaId)
+            if ($SchemaId -eq 'builtin:slo') { return $null }
+            return [pscustomobject]@{
+                description = "ok"
+                properties  = [pscustomobject]@{ x = @{ type = 'string' } }
+            }
+        }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo')
+        $out    = New-TempOutputPath
+        # Note: no 'liveFields' key in the SLO entry below.
+        $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    {
+      "id": "builtin:management-zones",
+      "family": "topology",
+      "displayName": "Management Zone",
+      "scope": "environment",
+      "summary": "Old summary.",
+      "commonParameters": ["zoneName"]
+    },
+    {
+      "id": "builtin:slo",
+      "family": "alerting",
+      "displayName": "Service Level Objective",
+      "scope": "environment",
+      "summary": "Curated SLO summary without any liveFields field.",
+      "commonParameters": ["sloName"]
+    }
+  ]
+}
+'@
+        [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $partialStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $body = [System.IO.File]::ReadAllText($out)
+            $body | Should -Not -Match '\[null\]'
+            $body | Should -Not -Match '"liveFields":\s*null'
+            # Parse and confirm the unresolvable entry has an empty liveFields array.
+            $parsed = $body | ConvertFrom-Json
+            $slo = $parsed.schemas | Where-Object { $_.id -eq 'builtin:slo' }
+            @($slo.liveFields).Count | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'preserves an existing entry intact when its schema is unresolvable upstream' {
+        # Seed an existing catalog with a curated entry for an ID that
+        # the stub will say is unresolvable. The entry must survive the
+        # refresh untouched (curated fields preserved, no liveFields
+        # corruption, no [null] in the arrays).
+        $partialStub = {
+            param([string] $SchemaId)
+            if ($SchemaId -eq 'builtin:slo') { return $null }
+            return [pscustomobject]@{
+                description = "ok"
+                properties  = [pscustomobject]@{ x = @{ type = 'string' } }
+            }
+        }
+        $inputs = New-TempInputsFile -Ids @('builtin:management-zones','builtin:slo')
+        $out    = New-TempOutputPath
+        $seed = @'
+{
+  "$schema": "./schema.json",
+  "version": "1.0",
+  "schemas": [
+    {
+      "id": "builtin:management-zones",
+      "family": "topology",
+      "displayName": "Management Zone",
+      "scope": "environment",
+      "summary": "Stale curated summary.",
+      "commonParameters": ["zoneName"]
+    },
+    {
+      "id": "builtin:slo",
+      "family": "alerting",
+      "displayName": "Service Level Objective",
+      "scope": "environment",
+      "summary": "Pre-existing curated SLO summary that must survive an unresolvable refresh.",
+      "commonParameters": ["sloName","targetPct","warningPct"],
+      "liveFields": ["enabled","name","target","warning"]
+    }
+  ]
+}
+'@
+        [System.IO.File]::WriteAllText($out, $seed, [System.Text.UTF8Encoding]::new($false))
+        try {
+            & $script:RefreshScript -InputsPath $inputs -OutputPath $out -FetchSchemaScript $partialStub *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+            @($parsed.schemas).Count | Should -Be 2
+
+            # The resolvable entry has refreshed summary + liveFields.
+            $mz = $parsed.schemas | Where-Object { $_.id -eq 'builtin:management-zones' }
+            $mz.family             | Should -Be 'topology'
+            $mz.summary            | Should -Be 'ok'   # refreshed from the stub
+
+            # The UNresolvable entry survives byte-for-byte from the seed.
+            $slo = $parsed.schemas | Where-Object { $_.id -eq 'builtin:slo' }
+            $slo.family                                    | Should -Be 'alerting'
+            $slo.displayName                               | Should -Be 'Service Level Objective'
+            $slo.summary                                   | Should -Be 'Pre-existing curated SLO summary that must survive an unresolvable refresh.'
+            @($slo.commonParameters) -join ','             | Should -Be 'sloName,targetPct,warningPct'
+            @($slo.liveFields)       -join ','             | Should -Be 'enabled,name,target,warning'
+
+            # No literal [null] / null entries in arrays anywhere in the file.
+            $body = [System.IO.File]::ReadAllText($out)
+            $body | Should -Not -Match '\[null\]'
+            $body | Should -Not -Match '"liveFields":\s*null'
+        } finally {
+            Remove-Item -LiteralPath $inputs -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $out    -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe 'Sync-ConfigCatalog.ps1' {
     It '-Check passes against the committed modules/configs/' {
         & (Join-Path $script:MonacoDir 'Sync-ConfigCatalog.ps1') -Check *>&1 | Out-Null

@@ -1,0 +1,31 @@
+# Reflected-catalog inputs file. One Dynatrace settings 2.0 schema ID per
+# line. Lines starting with # are comments. Blank lines are ignored.
+# Order here determines the order entries appear in the regenerated
+# catalog.settings.json.
+#
+# Consumed by scripts/monaco/Sync-CatalogFromSchemas.ps1 (locally with
+# -WhatIf, in CI via the catalog-refresh workflow on a weekly cron).
+# Each ID is passed to `monaco generate schema --schema <id>` and the
+# returned JSON Schema seeds the catalog entry's summary + liveFields.
+# The entry's family and commonParameters stay hand-curated and are
+# preserved across refreshes.
+#
+# Adding a row = adding scaffold coverage for that schema (the next cron
+# run will pick it up and open a refresh PR with the new entry under
+# family: misc that a human reassigns during review).
+# Removing a row = removing scaffold coverage; the next cron run will
+# emit a deletion in the refresh PR.
+
+# Topology
+builtin:management-zones
+builtin:tags.auto-tagging
+
+# Alerting
+builtin:alerting.profile
+builtin:slo
+builtin:problem.notifications
+builtin:problem.notifications/email
+builtin:anomaly-detection.metric-events
+
+# Visualization
+builtin:dashboards
