@@ -16,7 +16,7 @@ Design docs are never silently rewritten after acceptance — significant change
 | # | Title | Status |
 |---|---|---|
 | 001 | [Multi-backend skeleton](MULTI-BACKEND-SKELETON.md) | Implemented (#10) |
-| 002 | [Scheduled catalog refresh](SCHEDULED-CATALOG-REFRESH.md) | Draft |
+| 002 | [Scheduled catalog refresh](SCHEDULED-CATALOG-REFRESH.md) | Accepted |
 | 003 | [Terraform backend](TERRAFORM-BACKEND.md) | Draft |
 
 ## Why design docs

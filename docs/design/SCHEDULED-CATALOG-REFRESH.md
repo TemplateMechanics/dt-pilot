@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Accepted |
 | **Owner** | TBA |
-| **Last updated** | 2026-05-20 |
-| **Implementation PR** | _pending_ |
+| **Last updated** | 2026-05-21 |
+| **Implementation PR** | in flight (`feat/scheduled-catalog-refresh`) |
 
 ## Problem
 
