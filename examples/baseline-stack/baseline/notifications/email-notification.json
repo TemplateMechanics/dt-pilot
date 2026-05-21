@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "type": "EMAIL",
+  "displayName": "{{ .notificationName }}",
+  "alertingProfile": "{{ .alertingProfileId }}",
+  "subject": "{ProblemSeverity} on {ImpactedEntityNames} (baseline-services)",
+  "to": [ "{{ .recipientEnv }}" ],
+  "cc": [],
+  "bcc": [],
+  "body": "{ProblemTitle}\n{ProblemDetailsText}\n\nProblem URL: {ProblemURL}\nManagement zone: baseline-services\n"
+}

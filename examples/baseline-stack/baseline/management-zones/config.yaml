@@ -1,0 +1,13 @@
+configs:
+  - id: baseline-services
+    type:
+      settings:
+        schema: builtin:management-zones
+        scope: environment
+    config:
+      name: baseline-services
+      template: management-zone.json
+      parameters:
+        zoneName:
+          type: value
+          value: dt-pilot-baseline-services

@@ -1,0 +1,14 @@
+configs:
+  - id: baseline-alerting
+    type:
+      settings:
+        schema: builtin:alerting.profile
+        scope: environment
+    config:
+      name: baseline-alerting
+      template: alerting-profile.json
+      parameters:
+        profileName:
+          type: value
+          value: dt-pilot-baseline-alerting
+        managementZoneId: [ builtin:management-zones, baseline-services, id ]

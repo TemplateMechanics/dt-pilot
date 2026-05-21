@@ -1,0 +1,18 @@
+configs:
+  - id: baseline-email-notification
+    type:
+      settings:
+        schema: builtin:problem.notifications
+        scope: environment
+    config:
+      name: baseline-email-notification
+      template: email-notification.json
+      parameters:
+        notificationName:
+          type: value
+          value: dt-pilot-baseline-email
+        alertingProfileId: [ builtin:alerting.profile, baseline-alerting, id ]
+        recipientEnv:
+          type: environment
+          name: DT_PILOT_NOTIFY_EMAIL
+          default: ops@example.com
