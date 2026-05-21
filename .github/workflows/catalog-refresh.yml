@@ -121,9 +121,32 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $date    = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
           $branch  = "chore/catalog-refresh-$date"
-          # Reuse an existing branch / PR on re-run rather than spawning a
-          # new one per workflow_dispatch invocation.
-          git checkout -b $branch
+
+          # If the refresh branch already exists on origin (workflow_dispatch
+          # re-run, or a human pushed review fixes onto a prior auto-PR
+          # branch), check it out from the remote AND keep the refreshed
+          # working-tree changes on top. Two reasons:
+          #   1. 'git checkout -b $branch' alone would always branch from
+          #      the current HEAD (main), losing any human commits on the
+          #      remote refresh branch.
+          #   2. 'git push --force-with-lease' is only safe when we have
+          #      a remote-tracking ref for the branch -- without it, the
+          #      lease is empty and degrades to an unconditional --force.
+          git fetch origin --quiet
+          $remoteRef = "refs/remotes/origin/$branch"
+          $remoteExists = (git for-each-ref --format='%(refname)' $remoteRef | Out-String).Trim().Length -gt 0
+          if ($remoteExists) {
+            Write-Host "Refresh branch $branch already exists on origin; rebasing local changes on top."
+            # Stash the working-tree changes, fast-forward to the remote
+            # branch, then pop. Conflicts here mean a human edited the
+            # same files the refresh wants to touch -- we exit non-zero
+            # so the operator decides.
+            git stash push --include-untracked --message "catalog-refresh-pending"
+            git checkout -B $branch "origin/$branch"
+            git stash pop
+          } else {
+            git checkout -b $branch
+          }
           # Stage exactly the directories the Detect step diffed.
           git add config/catalog/ modules/configs/
           # Write the commit message to a file so bash heredoc rules don't
@@ -148,14 +171,28 @@ jobs:
           $commitFile = Join-Path $env:RUNNER_TEMP 'commit-msg.txt'
           $commitMsg | Set-Content -LiteralPath $commitFile -Encoding utf8 -NoNewline
           git commit --file $commitFile
-          # --force-with-lease (not --force) so a human pushing review
-          # fixes onto the auto-PR branch isn't silently clobbered by a
-          # subsequent schedule / workflow_dispatch re-run. If the lease
-          # check fails, the workflow exits non-zero and an operator
-          # decides whether to abandon the in-flight review or rebase.
-          git push --force-with-lease --set-upstream origin $branch
+          if ($remoteExists) {
+            # --force-with-lease against the explicit fetched ref. The
+            # lease tells git "only force-push if origin/$branch still
+            # points at what we fetched"; a human pushing a commit
+            # between our fetch and our push aborts the push, exits the
+            # workflow non-zero, and lets an operator decide whether to
+            # abandon the in-flight review or rebase.
+            git push "--force-with-lease=$branch:refs/remotes/origin/$branch" --set-upstream origin $branch
+          } else {
+            # First-time push for this branch. No remote ref exists yet
+            # so a plain push is safe and a force is unnecessary.
+            git push --set-upstream origin $branch
+          }
 
           # Build the PR body. Same indent-stripping pattern.
+          # Redact DT_ENVIRONMENT to hostname-only -- the tenant URL is
+          # semi-sensitive (identifies a customer / internal env) and
+          # the PR body is permanent + indexable.
+          $dtHost = '(redacted)'
+          if ($env:DT_ENVIRONMENT) {
+            try { $dtHost = ([uri]$env:DT_ENVIRONMENT).Host } catch { $dtHost = '(unparseable)' }
+          }
           $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           $prBody = @"
           ## Auto-generated catalog refresh
@@ -163,7 +200,7 @@ jobs:
           | Field | Value |
           |---|---|
           | Trigger | ``$env:GITHUB_EVENT_NAME`` |
-          | Source environment | ``$env:DT_ENVIRONMENT`` |
+          | Source environment host | ``$dtHost`` |
           | Monaco version | ``$env:MONACO_VERSION`` |
           | Run | [#$env:GITHUB_RUN_ID]($runUrl) |
 

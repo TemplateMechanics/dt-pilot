@@ -409,6 +409,19 @@ Write-Diag "Output:  $OutputPath"
 $schemaIds = Read-SchemasInputFile -Path $InputsPath
 $existing  = Read-ExistingCatalog  -Path $OutputPath
 
+# Validate setup prerequisites UP FRONT (non-zero exit on failure) so
+# operator-facing problems (Monaco not installed, MONACO_EXE invalid)
+# can't get silently swallowed by the per-schema try/catch below and
+# treated as a transient "environment unreachable" condition. We skip
+# this check when a -FetchSchemaScript stub is provided since the stub
+# replaces the real monaco invocation entirely.
+if (-not $FetchSchemaScript) {
+    # Throws with a clear, operator-facing message if monaco cannot be
+    # resolved (see _Common.Resolve-MonacoExe). Failure here exits the
+    # script non-zero rather than mass-marking every schema as unresolved.
+    $null = Resolve-MonacoExe -MonacoExe $MonacoExe
+}
+
 $unresolved      = New-Object System.Collections.Generic.List[string]
 $entries         = New-Object System.Collections.Generic.List[object]
 $envFailureCount = 0
