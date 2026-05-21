@@ -2,6 +2,8 @@
 
 Operational runbook for dt-pilot. Each entry is a symptom you can grep for, followed by triage and recovery steps. Severity tags follow the convention in the [`agents/chief-systems-engineer.agent.md`](../agents/chief-systems-engineer.agent.md) playbook.
 
+> The "grep for" phrasing is literal: pick a symptom that matches what you're seeing and use it as a search term inside this file.
+
 ---
 
 ## [SEV-1] Production deploy applied changes that weren't in the dry-run

@@ -14,7 +14,9 @@ configs:
         targetPct:
           type: value
           value: 99.5
+        # Warning must be LOWER than target so the warning fires before
+        # the SLO actually breaches the target.
         warningPct:
           type: value
-          value: 99.8
+          value: 99.0
         managementZoneId: [ builtin:management-zones, baseline-services, id ]

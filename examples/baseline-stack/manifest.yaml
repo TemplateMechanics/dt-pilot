@@ -20,7 +20,11 @@ environmentGroups:
           type: environment
           value: DT_ENVIRONMENT_DEV
         auth:
-          token:
+          # Platform token (settings 2.0): Monaco distinguishes
+          # auth.platformToken from auth.token (the latter is the
+          # classic config API token). The env var name reflects which
+          # one the token actually is.
+          platformToken:
             name: DT_PLATFORM_TOKEN_DEV
       - name: staging
         url:

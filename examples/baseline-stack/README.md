@@ -51,7 +51,10 @@ See [`docs/AUTHENTICATION.md`](../../docs/AUTHENTICATION.md) for the auth-mode w
 # Schema-only check (dependency-free; runs in pre-commit + CI):
 ./scripts/Test-MonacoManifest.ps1 -Path examples/baseline-stack
 
-# Full validate (calls 'monaco deploy --dry-run'; needs Monaco installed):
+# Full validate (calls 'monaco deploy --dry-run'; needs Monaco installed
+# AND Dynatrace credentials for the target environment — Monaco resolves
+# the env-var references at this point and refuses to parse the manifest
+# if they aren't set):
 ./scripts/Validate-Monaco.ps1 -Path examples/baseline-stack -Environment dev
 
 # Produce a reviewable dry-run artifact:

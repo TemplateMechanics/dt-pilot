@@ -14,9 +14,13 @@ permissions:
 # `monaco deploy --dry-run` job is intentionally NOT here:
 #   - it requires Dynatrace credentials we won't grant to forks / PR
 #     workflows for security reasons; and
-#   - the structural manifest check (`Test-MonacoManifest.ps1`, run by
-#     the gate) catches every class of error a dry-run-without-creds
-#     would catch.
+#   - `Test-MonacoManifest.ps1` (run by the gate against every
+#     examples/*/manifest.yaml) covers the manifest-structure and
+#     secret-hygiene checks we can validate without credentials.
+# It does NOT cover everything `monaco deploy --dry-run` would catch:
+# template rendering, parameter reference resolution, and per-config
+# JSON-vs-schema validation all need either credentials or a stubbed
+# transport, neither of which we ship today.
 # Consumers who want a credentialed dry-run job should add it to their
 # fork in a separate workflow file that runs on `workflow_dispatch` and
 # reads from a protected GitHub Actions environment.
