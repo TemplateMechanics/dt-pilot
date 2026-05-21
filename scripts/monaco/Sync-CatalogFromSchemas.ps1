@@ -503,7 +503,7 @@ foreach ($id in $unresolved) {
 $attemptedCount = @($schemaIds).Count
 $shouldBailOut  = ($resolvedCount -eq 0) -and ($attemptedCount -gt 0)
 if ($shouldBailOut) {
-    Write-Diag "ZERO schemas resolved AND fatal fetch errors observed; assuming environment unreachable. Exiting 0 without changes per Design 002."
+    Write-Diag "ZERO schemas resolved out of $attemptedCount attempted; assuming environment unreachable. Exiting 0 without changes per Design 002."
     exit 0
 }
 
