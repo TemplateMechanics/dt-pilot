@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Accepted |
 | **Owner** | TBA |
-| **Last updated** | 2026-05-20 |
-| **Implementation PR** | _pending_ |
-| **Depends on** | [Design 001](MULTI-BACKEND-SKELETON.md) |
+| **Last updated** | 2026-05-21 |
+| **Implementation PR** | in flight (`feat/terraform-backend`) |
+| **Depends on** | [Design 001](MULTI-BACKEND-SKELETON.md) (Implemented #10) |
 
 ## Problem
 
