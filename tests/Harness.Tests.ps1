@@ -192,7 +192,7 @@ Describe 'Test-MonacoManifest.ps1' {
             'alpha/keep.txt' = 'x'; 'custom-beta/keep.txt' = 'x'
         }
         try {
-            $code = (& (Join-Path $script:ScriptDir 'Test-MonacoManifest.ps1') -Path $root *>&1; $LASTEXITCODE)
+            & (Join-Path $script:ScriptDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         } finally {
             Remove-Item -LiteralPath $root -Recurse -Force
@@ -283,11 +283,16 @@ Describe 'Test-McpConfigSecrets.ps1' {
         $target = Join-Path $tmpDir '.vscode/mcp.json'
         Set-Content -LiteralPath $target -Value $bad -Encoding utf8
 
-        # Build a temp script that invokes the scanner against our temp file
-        # by overriding $PSScriptRoot via dot-sourcing a copy.
+        # Build a temp script that invokes the scanner against our temp
+        # file by string-replacing $PSScriptRoot with our temp path.
+        # Use .Replace() (literal substring), NOT -replace, because
+        # -replace runs the second arg through .NET regex replacement
+        # rules and a Windows path containing backslashes would be
+        # mangled into escape sequences (\t, \n, etc).
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        Set-Content -LiteralPath $copy -Value ($scannerSrc -replace '\$PSScriptRoot', "'$tmpDir/scripts'") -Encoding utf8
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
         try {

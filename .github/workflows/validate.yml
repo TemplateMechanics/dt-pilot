@@ -64,8 +64,14 @@ jobs:
           $manifests = Get-ChildItem -Path examples -Filter manifest.yaml -Recurse -ErrorAction SilentlyContinue
           $failed = $false
           foreach ($m in $manifests) {
+            # Validate-Monaco.ps1 signals failure via non-zero exit, not
+            # an exception; must check $LASTEXITCODE explicitly.
             try {
               ./scripts/Validate-Monaco.ps1 -Path $m.FullName
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "FAILED (exit $LASTEXITCODE): $($m.FullName)" -ForegroundColor Red
+                $failed = $true
+              }
             } catch {
               Write-Host "FAILED: $($m.FullName) -> $_" -ForegroundColor Red
               $failed = $true

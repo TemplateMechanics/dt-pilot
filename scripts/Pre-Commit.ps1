@@ -53,8 +53,14 @@ if (-not $manifests) {
     Write-Host "  (no example manifests yet — examples/baseline-stack lands in PR 7)" -ForegroundColor DarkGray
 } else {
     foreach ($m in $manifests) {
+        # The wrappers signal failure via non-zero exit, NOT via exceptions.
+        # try/catch alone would silently swallow a manifest-validation failure.
         try {
             & (Join-Path $PSScriptRoot 'Test-MonacoManifest.ps1') -Path $m.FullName
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  FAILED (exit $LASTEXITCODE): $($m.FullName)" -ForegroundColor Red
+                $failed = $true
+            }
         } catch {
             Write-Host "  FAILED: $($m.FullName) -> $_" -ForegroundColor Red
             $failed = $true
@@ -69,6 +75,10 @@ try {
         & (Join-Path $PSScriptRoot 'Test-McpConfigSecrets.ps1')
     } else {
         & (Join-Path $PSScriptRoot 'Test-McpConfigSecrets.ps1') -StagedOnly
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
+        $failed = $true
     }
 } catch {
     Write-Host "  FAILED: $_" -ForegroundColor Red
@@ -89,9 +99,11 @@ if (-not $SkipTests) {
             Import-Module Pester -MinimumVersion 5.0
             $config = New-PesterConfiguration
             $config.Run.Path = $testsPath
+            $config.Run.PassThru = $true     # required for the run object to surface
+            $config.Run.Exit = $false        # we own the exit code
             $config.Output.Verbosity = 'Detailed'
             $result = Invoke-Pester -Configuration $config
-            if ($result.FailedCount -gt 0) {
+            if (-not $result -or $result.FailedCount -gt 0 -or $result.Result -ne 'Passed') {
                 $failed = $true
             }
         }
