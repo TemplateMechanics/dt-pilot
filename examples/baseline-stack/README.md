@@ -46,22 +46,22 @@ See [`docs/AUTHENTICATION.md`](../../docs/AUTHENTICATION.md) for the auth-mode w
 
 ```powershell
 # Sanity check (validates Monaco, manifest, project directories):
-./scripts/Initialize-MonacoWorkspace.ps1 -Path examples/baseline-stack
+./scripts/monaco/Initialize-MonacoWorkspace.ps1 -Path examples/baseline-stack
 
 # Schema-only check (dependency-free; runs in pre-commit + CI):
-./scripts/Test-MonacoManifest.ps1 -Path examples/baseline-stack
+./scripts/monaco/Test-MonacoManifest.ps1 -Path examples/baseline-stack
 
 # Full validate (calls 'monaco deploy --dry-run'; needs Monaco installed
 # AND Dynatrace credentials for the target environment — Monaco resolves
 # the env-var references at this point and refuses to parse the manifest
 # if they aren't set):
-./scripts/Validate-Monaco.ps1 -Path examples/baseline-stack -Environment dev
+./scripts/monaco/Validate-Monaco.ps1 -Path examples/baseline-stack -Environment dev
 
 # Produce a reviewable dry-run artifact:
-./scripts/Invoke-MonacoDryRun.ps1 -Path examples/baseline-stack -Environment dev -Out dryrun/dev.json
+./scripts/monaco/Invoke-MonacoDryRun.ps1 -Path examples/baseline-stack -Environment dev -Out dryrun/dev.json
 
 # After human approval:
-./scripts/Invoke-MonacoDeploy.ps1 -Path examples/baseline-stack -Environment dev -DryRunFile dryrun/dev.json
+./scripts/monaco/Invoke-MonacoDeploy.ps1 -Path examples/baseline-stack -Environment dev -DryRunFile dryrun/dev.json
 ```
 
 ## Promoting through environments

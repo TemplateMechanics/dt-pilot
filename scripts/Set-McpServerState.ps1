@@ -5,7 +5,7 @@
     decides which servers may be toggled.
 
 .DESCRIPTION
-    Chat-driven MCP toggles MUST go through this script — never hand-edit
+    Chat-driven MCP toggles MUST go through this script -- never hand-edit
     .vscode/mcp.json. The catalog's 'alwaysEnabled' flag is authoritative:
     a server marked alwaysEnabled cannot be disabled.
 

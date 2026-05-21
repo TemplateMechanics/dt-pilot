@@ -30,7 +30,7 @@ function Resolve-MonacoExe {
         return (Resolve-Path -LiteralPath $envOverride).ProviderPath
     }
 
-    # Restrict the PATH lookup to actual executables — an alias or function
+    # Restrict the PATH lookup to actual executables -- an alias or function
     # named 'monaco' would expose a .Source that is not a runnable file
     # path, and the later Process.Start would fail with a confusing error.
     $cmd = Get-Command -Name monaco -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -168,7 +168,7 @@ function Get-WorkspaceHash {
     # directory it references. This is the bag of bytes Monaco will read
     # at deploy time; binding the dry-run artifact to this hash means a
     # post-dry-run edit to ANY config.yaml or template.json invalidates
-    # the deploy — not just an edit to manifest.yaml.
+    # the deploy -- not just an edit to manifest.yaml.
     $files = New-Object System.Collections.Generic.List[string]
     $files.Add((Resolve-Path -LiteralPath $ManifestPath).ProviderPath)
 
@@ -219,7 +219,7 @@ function Write-DryRunMetadata {
     $createdAt     = (Get-Date).ToUniversalTime().ToString('o')
 
     # Best-effort summary: count Monaco's "would create / update / delete"
-    # lines. Monaco's log format is subject to change across versions — we
+    # lines. Monaco's log format is subject to change across versions -- we
     # expose the raw output too so reviewers and Invoke-MonacoDeploy can do
     # their own parsing.
     # Use [regex]::Matches directly: under StrictMode, dereferencing .Matches

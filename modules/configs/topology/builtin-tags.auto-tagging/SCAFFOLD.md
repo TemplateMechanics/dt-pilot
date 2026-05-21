@@ -1,4 +1,4 @@
-<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
+<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/monaco/Sync-ConfigCatalog.ps1 -->
 <!-- SPDX-License-Identifier: MIT -->
 # Scaffold: Auto-Tag Rule
 
@@ -19,7 +19,7 @@ Rule for attaching tags to entities based on attribute / metadata predicates. Ta
 3. Replace the placeholder `template.json` body with the real Dynatrace payload. Get the live schema first via:
 
    ```powershell
-   ./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema builtin:tags.auto-tagging
+   ./scripts/monaco/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema builtin:tags.auto-tagging
    ```
 
 4. Register the project in the manifest's `projects:` list, then validate and dry-run before deploying.

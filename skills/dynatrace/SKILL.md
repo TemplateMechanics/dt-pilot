@@ -1,8 +1,10 @@
 # Skill — Dynatrace Configuration-as-Code with Monaco
 
-This is the canonical reference for working with Dynatrace configuration in this repository. Read it before editing any `manifest.yaml`, `config.yaml`, or `template.json`. When this document and external Dynatrace documentation conflict, the Dynatrace documentation wins for product behavior; this skill wins for repository conventions (file layout, parameter naming, branch/PR discipline).
+This is the canonical reference for working with Dynatrace configuration in this repository **using the Monaco backend**. It is one of several per-backend skills under `skills/<backend>/SKILL.md`. The cross-backend contract — plan-as-artifact, apply gates, destroy gates, secret hygiene, MCP-first reads, branch + PR discipline — lives in [`skills/iac/SKILL.md`](../iac/SKILL.md). Read that skill first if you have not; this document assumes you know the contract and covers Monaco's implementation of it.
 
-> Forward references: this skill mentions wrapper scripts (`scripts/Invoke-Monaco*.ps1`), MCP integration (`.vscode/mcp.json`), CI gates (`.github/workflows/validate.yml`), and a reflected catalog (`config/catalog/`, `modules/configs/`). Those land in **PRs&nbsp;4, 5, 6, and 8** respectively. Until then, the skill stays useful for authoring Monaco YAML/JSON by hand and reading dry-run output; the wrappers only automate what's already documented here.
+Read this skill before editing any `manifest.yaml`, `config.yaml`, or `template.json`. When this document and external Dynatrace documentation conflict, the Dynatrace documentation wins for product behavior; this skill wins for repository conventions (file layout, parameter naming, branch/PR discipline).
+
+Wrapper scripts referenced below live at `scripts/monaco/Invoke-Monaco*.ps1` (and similar). Compatibility shims at the legacy `scripts/Invoke-Monaco*.ps1` paths still work but emit a deprecation warning; update invocations to the new paths.
 
 ---
 

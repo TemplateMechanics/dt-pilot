@@ -27,8 +27,8 @@ Examples:
 
 ```powershell
 # example:
-./scripts/Validate-Monaco.ps1 -Path examples/baseline-stack
-./scripts/Invoke-MonacoDryRun.ps1 -Path examples/baseline-stack -Environment dev
+./scripts/monaco/Validate-Monaco.ps1 -Path examples/baseline-stack
+./scripts/monaco/Invoke-MonacoDryRun.ps1 -Path examples/baseline-stack -Environment dev
 ```
 
 ## Risk

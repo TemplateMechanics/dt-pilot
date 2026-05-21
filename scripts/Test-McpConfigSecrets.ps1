@@ -7,7 +7,7 @@
 .DESCRIPTION
     Parses each target file as JSON and inspects the load-bearing fields
     (every 'value' under 'env:' blocks and every 'value' under 'inputs[]'
-    entries — i.e. the spots that actually get sent to the MCP client at
+    entries -- i.e. the spots that actually get sent to the MCP client at
     launch time). 'description' fields and other free-text are NOT
     scanned, so realistic-looking example URLs in input prompts don't
     trip the scanner.
@@ -21,7 +21,7 @@
     OAuth client-secret detection by string-shape is not attempted: secrets
     are entropy-shaped and string-shape heuristics produce too many false
     positives. The repo convention is that secrets never appear as inline
-    values anyway — they come from env-var references — and the live tenant
+    values anyway -- they come from env-var references -- and the live tenant
     URL + token literal checks are sufficient to enforce that convention.
 
     Per-developer secrets belong in .vscode/mcp.session.json (gitignored)
@@ -80,7 +80,7 @@ if (-not $targets -or @($targets).Count -eq 0) {
 
 $findings = New-Object System.Collections.Generic.List[string]
 
-# Dynatrace token literal. We MUST stay broad here — Dynatrace has
+# Dynatrace token literal. We MUST stay broad here -- Dynatrace has
 # shipped multiple token shapes over the years and will ship more, and
 # the cost of a false negative (a real token leaked) outweighs the cost
 # of a false positive (a token-shaped placeholder flagged). Anything
@@ -103,7 +103,7 @@ function Test-StringForSecrets {
         $hits += ("{0}  ({1}): Dynatrace token literal detected" -f $File, $Location)
     }
     if ($Value -match $tenantUrlRegex) {
-        $hits += ("{0}  ({1}): live tenant URL literal '{2}' — use type:environment + env-var reference instead" -f $File, $Location, $Matches[0])
+        $hits += ("{0}  ({1}): live tenant URL literal '{2}' -- use type:environment + env-var reference instead" -f $File, $Location, $Matches[0])
     }
     if ($Value -match $bearerInUrlRegex) {
         $hits += ("{0}  ({1}): credential embedded in URL detected" -f $File, $Location)
@@ -115,7 +115,7 @@ foreach ($file in $targets) {
     try {
         $json = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
     } catch {
-        $findings.Add(("{0}: not valid JSON — refusing to scan ({1})" -f $file, $_.Exception.Message))
+        $findings.Add(("{0}: not valid JSON -- refusing to scan ({1})" -f $file, $_.Exception.Message))
         continue
     }
 
@@ -129,7 +129,7 @@ foreach ($file in $targets) {
                     foreach ($h in $hits) { $findings.Add($h) }
                 }
             }
-            # 'args' is also a load-bearing field — scan each entry.
+            # 'args' is also a load-bearing field -- scan each entry.
             if ($srv.PSObject.Properties['args']) {
                 for ($i = 0; $i -lt $srv.args.Count; $i++) {
                     $hits = Test-StringForSecrets -Value $srv.args[$i] -File $file -Location ("servers.{0}.args[{1}]" -f $srvProp.Name, $i)
@@ -162,6 +162,6 @@ if ($findings.Count -gt 0) {
     exit 1
 }
 
-$count = @($targets).Count   # coerce — strict mode rejects .Count on a scalar
+$count = @($targets).Count   # coerce -- strict mode rejects .Count on a scalar
 Write-Host "MCP secret-hygiene scan passed for $count file(s)." -ForegroundColor Green
 exit 0

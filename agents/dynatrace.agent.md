@@ -47,23 +47,23 @@ Use the Dynatrace MCP server for discovery and read-oriented tasks. For executio
 
 | Task | Command |
 |------|---------|
-| **Init / sanity** | `./scripts/Initialize-MonacoWorkspace.ps1 -Path .` |
-| **Validate** | `./scripts/Validate-Monaco.ps1 -Path .` |
-| **Dry-run** | `./scripts/Invoke-MonacoDryRun.ps1 -Path . -Environment <env> -Out dryrun/<env>.json` |
-| **Deploy (saved dry-run)** | `./scripts/Invoke-MonacoDeploy.ps1 -Path . -Environment <env> -DryRunFile dryrun/<env>.json` |
-| **Delete (requires confirm)** | `./scripts/Invoke-MonacoDelete.ps1 -Path . -Environment <env> -DeleteFile deletefile.yaml -Confirm` |
-| **Generate deletefile** | `./scripts/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
-| **Generate schema** | `./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema <schema-id>` |
-| **Download** | `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/` |
-| **Versions** | `./scripts/Get-MonacoVersion.ps1` |
+| **Init / sanity** | `./scripts/monaco/Initialize-MonacoWorkspace.ps1 -Path .` |
+| **Validate** | `./scripts/monaco/Validate-Monaco.ps1 -Path .` |
+| **Dry-run** | `./scripts/monaco/Invoke-MonacoDryRun.ps1 -Path . -Environment <env> -Out dryrun/<env>.json` |
+| **Deploy (saved dry-run)** | `./scripts/monaco/Invoke-MonacoDeploy.ps1 -Path . -Environment <env> -DryRunFile dryrun/<env>.json` |
+| **Delete (requires confirm)** | `./scripts/monaco/Invoke-MonacoDelete.ps1 -Path . -Environment <env> -DeleteFile deletefile.yaml -Confirm` |
+| **Generate deletefile** | `./scripts/monaco/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
+| **Generate schema** | `./scripts/monaco/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema <schema-id>` |
+| **Download** | `./scripts/monaco/Invoke-MonacoDownload.ps1 -Path . -Environment <env> -Output downloaded/` |
+| **Versions** | `./scripts/monaco/Get-MonacoVersion.ps1` |
 
 ### MANDATORY dry-run → deploy sequence
 
 > **WARNING**: `monaco deploy` without a saved dry-run is forbidden. Run dry-run, summarize the output for the user, get explicit approval, then deploy the saved dry-run. Do not pass `--auto-deploy`.
 
-1. `./scripts/Invoke-MonacoDryRun.ps1 -Path . -Environment <env> -Out dryrun/<env>.json`
+1. `./scripts/monaco/Invoke-MonacoDryRun.ps1 -Path . -Environment <env> -Out dryrun/<env>.json`
 2. Read `dryrun/<env>.json` and report: configs created / updated / deleted per project, environment, environment group, any reference resolution warnings, every delete and every change to a stateful config (SLOs, alerting profiles, notification configs, management zones).
-3. After approval: `./scripts/Invoke-MonacoDeploy.ps1 -Path . -Environment <env> -DryRunFile dryrun/<env>.json`
+3. After approval: `./scripts/monaco/Invoke-MonacoDeploy.ps1 -Path . -Environment <env> -DryRunFile dryrun/<env>.json`
 4. If >30 min between steps 1 and 3, re-dry-run.
 
 ## Workflow
@@ -74,10 +74,10 @@ Use the Dynatrace MCP server for discovery and read-oriented tasks. For executio
 4. **Discover** live environment context via the Dynatrace MCP server (entities, current settings, DQL).
 5. **Create a semantic branch** (`git checkout -b feat/<scope>`).
 6. **Edit** Monaco YAML/JSON using existing patterns and (where they exist) reflected catalog modules from `modules/configs/`.
-7. **Validate** via `./scripts/Validate-Monaco.ps1`.
-8. **Dry-run** via `./scripts/Invoke-MonacoDryRun.ps1` and present the summary.
+7. **Validate** via `./scripts/monaco/Validate-Monaco.ps1`.
+8. **Dry-run** via `./scripts/monaco/Invoke-MonacoDryRun.ps1` and present the summary.
 9. **Wait for explicit user approval** before deploy.
-10. **Deploy** the saved dry-run via `./scripts/Invoke-MonacoDeploy.ps1`.
+10. **Deploy** the saved dry-run via `./scripts/monaco/Invoke-MonacoDeploy.ps1`.
 11. **Open a PR** via `gh pr create`. Request `@copilot` review. Address every comment. Resolve every thread. Squash-merge.
 
 ## Conversational defaults
@@ -86,7 +86,7 @@ Use the Dynatrace MCP server for discovery and read-oriented tasks. For executio
 - When the user asks "delete this", confirm whether they mean (a) remove from the manifest (Monaco will detect the orphan but won't auto-delete) or (b) explicitly delete via `monaco delete` (requires deletefile + `-Confirm`).
 - When the user asks "what does this DQL do", call the MCP `explain_dql_in_natural_language` tool rather than guessing.
 - When the user asks for a new alerting profile / management zone / SLO, check `modules/configs/` for an existing scaffold first.
-- When you don't know a settings 2.0 schema field, use `./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema <schema-id>` to dump the live schema rather than inventing fields.
+- When you don't know a settings 2.0 schema field, use `./scripts/monaco/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema <schema-id>` to dump the live schema rather than inventing fields.
 
 ## Refusals
 

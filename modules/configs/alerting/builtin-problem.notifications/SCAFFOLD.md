@@ -1,4 +1,4 @@
-<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
+<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/monaco/Sync-ConfigCatalog.ps1 -->
 <!-- SPDX-License-Identifier: MIT -->
 # Scaffold: Problem Notification
 
@@ -19,7 +19,7 @@ Email / Slack / webhook / PagerDuty / Jira / OpsGenie / xMatters routing for pro
 3. Replace the placeholder `template.json` body with the real Dynatrace payload. Get the live schema first via:
 
    ```powershell
-   ./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema builtin:problem.notifications
+   ./scripts/monaco/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema builtin:problem.notifications
    ```
 
 4. Register the project in the manifest's `projects:` list, then validate and dry-run before deploying.

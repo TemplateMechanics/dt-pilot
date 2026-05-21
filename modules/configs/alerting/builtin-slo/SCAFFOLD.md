@@ -1,4 +1,4 @@
-<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1 -->
+<!-- GENERATED FILE - do not hand-edit. Regenerate with ./scripts/monaco/Sync-ConfigCatalog.ps1 -->
 <!-- SPDX-License-Identifier: MIT -->
 # Scaffold: Service Level Objective
 
@@ -19,7 +19,7 @@ Defines an SLO over a metric expression with target and warning thresholds. Typi
 3. Replace the placeholder `template.json` body with the real Dynatrace payload. Get the live schema first via:
 
    ```powershell
-   ./scripts/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema builtin:slo
+   ./scripts/monaco/Invoke-MonacoGenerate.ps1 -Path . -Type schema -Schema builtin:slo
    ```
 
 4. Register the project in the manifest's `projects:` list, then validate and dry-run before deploying.

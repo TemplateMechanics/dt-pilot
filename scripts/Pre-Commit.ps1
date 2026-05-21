@@ -8,13 +8,14 @@
     Runs every check below in order, accumulating failures, then exits
     non-zero at the end if anything failed. This deliberately surfaces
     multiple problems per invocation so you can fix them in one round:
-        1. Manifest schema check on every example/* project.
+        1. Per-backend manifest schema check (reads config/catalog/backends.json,
+           runs each backend's manifestValidator against its manifestPattern).
         2. MCP secret-hygiene scan (-StagedOnly by default; -All scans
            every tracked MCP config).
-        3. Reflected config catalog sync check
-           (./scripts/Sync-ConfigCatalog.ps1 -Check).
+        3. Per-backend reflected catalog sync check (reads config/catalog/backends.json,
+           runs each backend's catalogSyncScript with -Check).
         4. Pester suite (./tests/Harness.Tests.ps1) -- fast, doesn't
-           require Monaco or a live Dynatrace tenant.
+           require Monaco / Terraform / a live tenant.
 
     Repo-wide gate; intentionally takes no -Path parameter.
 
@@ -50,56 +51,102 @@ function Section($name) {
     Write-Host "===== $name =====" -ForegroundColor Cyan
 }
 
-# 1. Manifest schema check on every example/* project that has a manifest.yaml.
-Section "Manifest schema check"
-$manifests = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'examples') -Filter 'manifest.yaml' -Recurse -ErrorAction SilentlyContinue
-if (-not $manifests) {
-    Write-Host "  (no example manifests yet — examples/baseline-stack lands in PR 7)" -ForegroundColor DarkGray
-} else {
+function Invoke-Step {
+    param(
+        [string] $Label,
+        [scriptblock] $Block
+    )
+    try {
+        & $Block
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  FAILED (exit $LASTEXITCODE): $Label" -ForegroundColor Red
+            $script:failed = $true
+        }
+    } catch {
+        Write-Host "  FAILED: $Label -> $_" -ForegroundColor Red
+        $script:failed = $true
+    }
+}
+
+# Load the backend registry. Tooling iterates this instead of hard-coding
+# Monaco paths; new backends are picked up automatically by adding an entry.
+$backendsPath = Join-Path $repoRoot 'config/catalog/backends.json'
+if (-not (Test-Path -LiteralPath $backendsPath)) {
+    throw "Backends registry not found at $backendsPath"
+}
+$backends = @((Get-Content -LiteralPath $backendsPath -Raw | ConvertFrom-Json).backends)
+
+# 1. Per-backend manifest schema check.
+Section "Manifest schema check (per backend)"
+foreach ($b in $backends) {
+    if (-not ($b.PSObject.Properties['manifestPattern'] -and $b.PSObject.Properties['manifestValidator'])) {
+        Write-Host "  $($b.id): no manifestPattern/manifestValidator declared; skipping" -ForegroundColor DarkGray
+        continue
+    }
+    $validator = Join-Path $repoRoot $b.manifestValidator
+    if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) {
+        Write-Host "  FAILED: $($b.id) manifestValidator missing at $validator" -ForegroundColor Red
+        $failed = $true
+        continue
+    }
+    # Resolve the glob via Get-ChildItem -Recurse. backends.json uses a
+    # glob like 'examples/**/manifest.yaml' which we split into root +
+    # filter for the cmdlet.
+    # Resolve manifestPattern -> a list of on-disk files. Supported shapes
+    # (enforced by backends.schema.json):
+    #   1. '<dir>/**/<filename>' -- recursive search for <filename> under <dir>
+    #   2. '<dir>/<filename>'    -- single-file exact path
+    #   3. '<filename>'          -- single-file at repo root
+    # Anything containing a single '*' outside the recursive '/**/' segment
+    # is rejected so the resolver stays predictable as backends accumulate.
+    $manifests = $null
+    if ($b.manifestPattern -match '^(?<root>[^*]+)/\*\*/(?<file>[^/*]+)$') {
+        $rootPath = Join-Path $repoRoot $Matches.root
+        if (-not (Test-Path -LiteralPath $rootPath)) {
+            Write-Host "  $($b.id): no $($Matches.root) directory; nothing to check" -ForegroundColor DarkGray
+            continue
+        }
+        $manifests = Get-ChildItem -LiteralPath $rootPath -Filter $Matches.file -Recurse -ErrorAction SilentlyContinue
+    } elseif ($b.manifestPattern -notmatch '\*') {
+        $singlePath = Join-Path $repoRoot $b.manifestPattern
+        if (Test-Path -LiteralPath $singlePath -PathType Leaf) {
+            $manifests = @(Get-Item -LiteralPath $singlePath)
+        }
+    } else {
+        throw "Backend '$($b.id)' has manifestPattern '$($b.manifestPattern)' which is not in a supported shape (allowed: '<dir>/**/<filename>', '<dir>/<filename>', or '<filename>'). Update backends.json or extend the resolver in Pre-Commit.ps1."
+    }
+    if (-not $manifests) {
+        Write-Host "  $($b.id): no files match $($b.manifestPattern); nothing to check" -ForegroundColor DarkGray
+        continue
+    }
     foreach ($m in $manifests) {
-        # The wrappers signal failure via non-zero exit, NOT via exceptions.
-        # try/catch alone would silently swallow a manifest-validation failure.
-        try {
-            & (Join-Path $PSScriptRoot 'Test-MonacoManifest.ps1') -Path $m.FullName
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "  FAILED (exit $LASTEXITCODE): $($m.FullName)" -ForegroundColor Red
-                $failed = $true
-            }
-        } catch {
-            Write-Host "  FAILED: $($m.FullName) -> $_" -ForegroundColor Red
-            $failed = $true
+        Invoke-Step -Label "$($b.id) :: $($m.FullName)" -Block {
+            & $validator -Path $m.FullName
         }
     }
 }
 
-# 2. MCP secret-hygiene scan.
+# 2. MCP secret-hygiene scan (backend-agnostic; lives at scripts/ root).
 Section "MCP secret-hygiene scan"
-try {
-    if ($All) {
-        & (Join-Path $PSScriptRoot 'Test-McpConfigSecrets.ps1')
-    } else {
-        & (Join-Path $PSScriptRoot 'Test-McpConfigSecrets.ps1') -StagedOnly
-    }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
-        $failed = $true
-    }
-} catch {
-    Write-Host "  FAILED: $_" -ForegroundColor Red
-    $failed = $true
+$scanner = Join-Path $PSScriptRoot 'Test-McpConfigSecrets.ps1'
+Invoke-Step -Label "MCP secret-hygiene scan" -Block {
+    if ($All) { & $scanner } else { & $scanner -StagedOnly }
 }
 
-# 3. Reflected config catalog sync check.
-Section "Reflected config catalog (Sync-ConfigCatalog -Check)"
-try {
-    & (Join-Path $PSScriptRoot 'Sync-ConfigCatalog.ps1') -Check
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
-        $failed = $true
+# 3. Per-backend reflected catalog sync check.
+Section "Reflected catalog sync (per backend)"
+foreach ($b in $backends) {
+    if (-not $b.PSObject.Properties['catalogSyncScript']) {
+        Write-Host "  $($b.id): no catalogSyncScript declared; skipping" -ForegroundColor DarkGray
+        continue
     }
-} catch {
-    Write-Host "  FAILED: $_" -ForegroundColor Red
-    $failed = $true
+    $sync = Join-Path $repoRoot $b.catalogSyncScript
+    if (-not (Test-Path -LiteralPath $sync -PathType Leaf)) {
+        Write-Host "  FAILED: $($b.id) catalogSyncScript missing at $sync" -ForegroundColor Red
+        $failed = $true
+        continue
+    }
+    Invoke-Step -Label "$($b.id) catalog -Check" -Block { & $sync -Check }
 }
 
 # 4. Pester suite.

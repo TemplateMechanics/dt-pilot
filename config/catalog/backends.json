@@ -1,0 +1,26 @@
+{
+  "$schema": "./backends.schema.json",
+  "_comment": "Authoritative registry of dt-pilot backends. Tooling (Pre-Commit.ps1, future Sync-McpServerEnablement.ps1) reads this file rather than hard-coding paths; agents read it to enumerate what's supported. Adding a backend is one focused PR per docs/design/MULTI-BACKEND-SKELETON.md.",
+  "version": "1.0",
+  "backends": [
+    {
+      "id": "monaco",
+      "displayName": "Dynatrace Monaco",
+      "skill": "skills/dynatrace/SKILL.md",
+      "agentPersona": "agents/dynatrace.agent.md",
+      "scriptsDir": "scripts/monaco",
+      "catalogFile": "config/catalog/catalog.settings.json",
+      "catalogSyncScript": "scripts/monaco/Sync-ConfigCatalog.ps1",
+      "modulesDir": "modules/configs",
+      "manifestPattern": "examples/**/manifest.yaml",
+      "manifestValidator": "scripts/monaco/Test-MonacoManifest.ps1",
+      "detect": [
+        {
+          "type": "file-exists",
+          "path": "manifest.yaml",
+          "match": "monaco-manifest"
+        }
+      ]
+    }
+  ]
+}
