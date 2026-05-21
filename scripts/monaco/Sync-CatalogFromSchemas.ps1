@@ -39,9 +39,10 @@
 
 .PARAMETER WhatIf
     Compute the proposed catalog and print the diff summary without
-    writing config/catalog/catalog.settings.json. The CI workflow runs
-    without -WhatIf; the Pester suite runs with -WhatIf against a
-    stubbed schema fetcher.
+    writing the output file. The CI workflow runs without -WhatIf so
+    the refresh actually lands. The Pester suite mostly writes to
+    a temp -OutputPath (so it can read the produced JSON back), with
+    one -WhatIf case that confirms no file is created.
 
 .PARAMETER OutputPath
     Override the destination catalog path. Defaults to the repo's

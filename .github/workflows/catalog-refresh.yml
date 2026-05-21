@@ -216,7 +216,7 @@ jobs:
 
           ### Diff scope
 
-          Only `config/catalog/catalog.settings.json` and `modules/configs/` should change. Anything else means the workflow needs review.
+          Only ``config/catalog/catalog.settings.json`` and ``modules/configs/`` should change. Anything else means the workflow needs review.
 
           ### Reviewer checklist
 

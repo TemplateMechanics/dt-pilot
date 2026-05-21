@@ -575,12 +575,12 @@ Describe 'Sync-CatalogFromSchemas.ps1 (Design 002)' {
             # literal path templates '<family>' and '<safe-id>'. The
             # strict serializer (ConvertTo-StrictJsonString) emits the
             # raw '<' / '>' bytes; PowerShell's built-in ConvertTo-Json
-            # would have escaped them to the JSON-unicode form
+            # would have escaped them to the JSON unicode-escape form
             # '<' / '>'. The assertions below lock in the
             # strict-serializer behavior: the raw brackets MUST be
-            # present and the escaped form MUST NOT be. If the second
-            # assertion ever fires, a ConvertTo-Json call snuck back
-            # into the JSON serialization path.
+            # present, and the '<' escaped form MUST NOT be. If
+            # the second assertion ever fires, a ConvertTo-Json call
+            # snuck back into the JSON serialization path.
             $body | Should -Match '<family>'
             $body | Should -Match '<safe-id>'
             $body | Should -Not -Match '\\u003c'
