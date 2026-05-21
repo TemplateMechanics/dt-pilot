@@ -111,7 +111,9 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
             # level — anything from here on belongs to a sibling block.
             if ($peerIndent -le $baseIndent) { break }
             if ($peer -match '^\s*value\s*:\s*\S') {
-                $errors.Add("inline literal value detected under '$authKey:' at line $($j + 1); auth blocks must reference env vars via 'name:' rather than inlining secrets.")
+                # ${authKey}: — braces force the scope separator. Bare $authKey:
+                # is a PS parse error because ':' is otherwise a scope delimiter.
+                $errors.Add("inline literal value detected under '${authKey}:' at line $($j + 1); auth blocks must reference env vars via 'name:' rather than inlining secrets.")
                 break
             }
         }
