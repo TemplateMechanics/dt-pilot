@@ -49,6 +49,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0   # need full history so the auto-PR branch is creatable from main
+          # Pin to main explicitly so a workflow_dispatch run against a
+          # feature branch can't accidentally seed the refresh PR with
+          # unrelated commits. The refresh PR always targets main, so the
+          # base it's built from must also be main.
+          ref: main
 
       - name: Validate gated-environment configuration
         shell: bash
