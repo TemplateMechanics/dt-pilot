@@ -65,7 +65,12 @@ $args = @('deploy', '--dry-run', '--environment', $Environment, (Split-Path -Lea
 Write-Host "Dry-run: $manifest -> environment '$Environment'"
 $result = Invoke-MonacoCommand -MonacoExe $exe -Arguments $args -WorkingDirectory $workDir -CaptureOutput
 
-$raw = (($result.StdOut ?? '') + "`n" + ($result.StdErr ?? '')).TrimEnd()
+# Build the raw output string without the PS-7-only ?? operator so the
+# script parses cleanly under PS 5.1 as well (the legacy shims forward
+# whatever interpreter the user invoked).
+$stdoutText = if ($null -ne $result.StdOut) { $result.StdOut } else { '' }
+$stderrText = if ($null -ne $result.StdErr) { $result.StdErr } else { '' }
+$raw = ($stdoutText + "`n" + $stderrText).TrimEnd()
 
 # Always persist the artifact -- including for failed dry-runs -- so the
 # reviewer can inspect why it failed. The metadata helper records the
