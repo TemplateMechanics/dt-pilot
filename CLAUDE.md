@@ -18,6 +18,25 @@ If MCP is unavailable, continue with repository docs plus `Get-MonacoVersion.ps1
 
 When touching reflected catalog modules under `modules/configs/` or `config/catalog/`, read [`docs/CONFIG-COVERAGE.md`](docs/CONFIG-COVERAGE.md) — it is the canonical doctrine for the reflected scaffold shape, sync semantics, and the per-PR coverage verification template.
 
+## Backend Routing
+
+dt-pilot is multi-backend. The active backend (or backends) in a workspace is determined by **workspace shape**, not by chat preamble. Before reading any backend-specific skill, detect which backend(s) apply by checking these signals:
+
+| If the workspace contains ... | Backend | Per-backend skill | Wrappers |
+|---|---|---|---|
+| `manifest.yaml` (Monaco manifest schema) | Monaco | [`skills/dynatrace/SKILL.md`](skills/dynatrace/SKILL.md) | `scripts/monaco/` |
+| `*.tf` files at any level *(planned, design 003)* | Terraform | `skills/terraform/SKILL.md` | `scripts/terraform/` |
+| `Composition` / `XRD` / `crossplane.yaml` *(planned)* | Crossplane | `skills/crossplane/SKILL.md` | `scripts/crossplane/` |
+| `Pulumi.yaml` *(planned)* | Pulumi | `skills/pulumi/SKILL.md` | `scripts/pulumi/` |
+
+**Always read [`skills/iac/SKILL.md`](skills/iac/SKILL.md) first** — it is the tool-agnostic harness contract (plan-as-artifact, apply gates, destroy gates, secret hygiene, MCP-first reads, branch + PR discipline). Per-backend skills assume you already know it.
+
+If multiple backends apply to the same workspace (a tenant managed by both Monaco and Terraform is the common case), read every applicable per-backend skill.
+
+The authoritative registry of supported backends lives at [`config/catalog/backends.json`](config/catalog/backends.json). Tooling (`Pre-Commit.ps1`, future `Sync-McpServerEnablement.ps1`) reads that file rather than hard-coding paths; agents read it to enumerate what's supported.
+
+Legacy wrapper paths under `scripts/Invoke-Monaco*.ps1` (and similar) are compatibility shims that forward to `scripts/monaco/...` and emit a deprecation warning to stderr. Update invocations to the new paths; shims will be removed in the release after the one that introduces them.
+
 ## Key Rules
 
 1. **YAML uses 2-space indentation** — never tabs in `.yaml` files. JSON templates use 2-space indentation.
@@ -58,17 +77,17 @@ Use these scripts as the execution path after MCP-guided analysis.
 
 | Task | Script | Example |
 |------|--------|---------|
-| **Init / sanity check** the workspace | `Initialize-MonacoWorkspace.ps1` | `./scripts/Initialize-MonacoWorkspace.ps1 -Path .` |
-| **Validate everything** (manifest schema + dry-run) | `Validate-Monaco.ps1` | `./scripts/Validate-Monaco.ps1 -Path .` |
-| **Dry-run** changes (writes `dryrun/<env>.json`) | `Invoke-MonacoDryRun.ps1` | `./scripts/Invoke-MonacoDryRun.ps1 -Path . -Environment dev -Out dryrun/dev.json` |
-| **Deploy** a reviewed dry-run | `Invoke-MonacoDeploy.ps1` | `./scripts/Invoke-MonacoDeploy.ps1 -Path . -Environment dev -DryRunFile dryrun/dev.json` |
-| **Delete** (requires deletefile + `-Confirm`) | `Invoke-MonacoDelete.ps1` | `./scripts/Invoke-MonacoDelete.ps1 -Path . -Environment dev -DeleteFile deletefile.yaml -Confirm` |
-| **Generate** a deletefile or schema | `Invoke-MonacoGenerate.ps1` | `./scripts/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
-| **Download** live config | `Invoke-MonacoDownload.ps1` | `./scripts/Invoke-MonacoDownload.ps1 -Path . -Environment dev -Output downloaded/` |
-| **Print Monaco + provider versions** | `Get-MonacoVersion.ps1` | `./scripts/Get-MonacoVersion.ps1` |
+| **Init / sanity check** the workspace | `Initialize-MonacoWorkspace.ps1` | `./scripts/monaco/Initialize-MonacoWorkspace.ps1 -Path .` |
+| **Validate everything** (manifest schema + dry-run) | `Validate-Monaco.ps1` | `./scripts/monaco/Validate-Monaco.ps1 -Path .` |
+| **Dry-run** changes (writes `dryrun/<env>.json`) | `Invoke-MonacoDryRun.ps1` | `./scripts/monaco/Invoke-MonacoDryRun.ps1 -Path . -Environment dev -Out dryrun/dev.json` |
+| **Deploy** a reviewed dry-run | `Invoke-MonacoDeploy.ps1` | `./scripts/monaco/Invoke-MonacoDeploy.ps1 -Path . -Environment dev -DryRunFile dryrun/dev.json` |
+| **Delete** (requires deletefile + `-Confirm`) | `Invoke-MonacoDelete.ps1` | `./scripts/monaco/Invoke-MonacoDelete.ps1 -Path . -Environment dev -DeleteFile deletefile.yaml -Confirm` |
+| **Generate** a deletefile or schema | `Invoke-MonacoGenerate.ps1` | `./scripts/monaco/Invoke-MonacoGenerate.ps1 -Type deletefile -Path .` |
+| **Download** live config | `Invoke-MonacoDownload.ps1` | `./scripts/monaco/Invoke-MonacoDownload.ps1 -Path . -Environment dev -Output downloaded/` |
+| **Print Monaco + provider versions** | `Get-MonacoVersion.ps1` | `./scripts/monaco/Get-MonacoVersion.ps1` |
 | **Pre-push gate** (manifest schema + dry-run + MCP secret hygiene + tests) | `Pre-Commit.ps1` | `./scripts/Pre-Commit.ps1` |
-| **Refresh reflected config catalog** | `Sync-ConfigCatalog.ps1` | `./scripts/Sync-ConfigCatalog.ps1 -Check` |
-| **Test manifest YAML against schema** | `Test-MonacoManifest.ps1` | `./scripts/Test-MonacoManifest.ps1 -Path manifest.yaml` |
+| **Refresh reflected config catalog** | `Sync-ConfigCatalog.ps1` | `./scripts/monaco/Sync-ConfigCatalog.ps1 -Check` |
+| **Test manifest YAML against schema** | `Test-MonacoManifest.ps1` | `./scripts/monaco/Test-MonacoManifest.ps1 -Path manifest.yaml` |
 | **MCP server toggle** | `Set-McpServerState.ps1` | `./scripts/Set-McpServerState.ps1 -Server dynatrace -Enable` |
 | **Scan MCP configs for hardcoded secrets** | `Test-McpConfigSecrets.ps1` | `./scripts/Test-McpConfigSecrets.ps1 -StagedOnly` |
 
@@ -94,13 +113,13 @@ Use these scripts as the execution path after MCP-guided analysis.
 
 1. **Dry-run** (always first):
    ```powershell
-   ./scripts/Invoke-MonacoDryRun.ps1 -Path . -Environment dev -Out dryrun/dev.json
+   ./scripts/monaco/Invoke-MonacoDryRun.ps1 -Path . -Environment dev -Out dryrun/dev.json
    ```
    The script writes `dryrun/dev.json` containing the planned create/update/delete operations per project and config. Read it, summarize the changes (configs created / updated / deleted, environment, group), and present the summary to the user. Surface every delete and every change to a stateful config (SLOs, alerting profiles, management zones, notification configs).
 
 2. **Deploy** (only after user approval):
    ```powershell
-   ./scripts/Invoke-MonacoDeploy.ps1 -Path . -Environment dev -DryRunFile dryrun/dev.json
+   ./scripts/monaco/Invoke-MonacoDeploy.ps1 -Path . -Environment dev -DryRunFile dryrun/dev.json
    ```
    The script refuses to run without `-DryRunFile`. Never pass `--auto-deploy` unless the user said so in this turn.
 
@@ -118,7 +137,7 @@ If 30+ minutes pass between dry-run and deploy, **re-dry-run**. Live environment
 Always run validation after making changes (once the wrapper has landed):
 
 ```powershell
-./scripts/Validate-Monaco.ps1 -Path .
+./scripts/monaco/Validate-Monaco.ps1 -Path .
 ```
 
 Exit code is non-zero if the manifest fails schema validation, any `template.json` references an undefined parameter, or `monaco deploy --dry-run` reports an error.

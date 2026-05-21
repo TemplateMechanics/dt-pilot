@@ -115,7 +115,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Monaco dry-run
         shell: pwsh
-        run: ./scripts/Validate-Monaco.ps1 -Path .
+        run: ./scripts/monaco/Validate-Monaco.ps1 -Path .
 ```
 
 Production secrets belong in a separate **environment** (in the GitHub Actions sense) that requires reviewer approval before the workflow can read them. See `agents/chief-systems-engineer.agent.md` for the multi-environment strategy.

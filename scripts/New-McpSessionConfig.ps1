@@ -55,5 +55,5 @@ foreach ($srv in $cat.servers) {
 $mcp | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $session -Encoding utf8
 
 Write-Host "Wrote $session" -ForegroundColor Green
-Write-Host "Edit this file freely — it is gitignored. Secrets and tenant URLs stay local." -ForegroundColor DarkGray
+Write-Host "Edit this file freely -- it is gitignored. Secrets and tenant URLs stay local." -ForegroundColor DarkGray
 exit 0

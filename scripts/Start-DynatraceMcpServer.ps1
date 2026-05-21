@@ -24,7 +24,7 @@
 
 .PARAMETER ExtraArgs
     Extra arguments forwarded to the MCP server (e.g. --http to switch
-    transports). Pass-through only — we do not validate them.
+    transports). Pass-through only -- we do not validate them.
 
 .EXAMPLE
     pwsh -NoProfile -File ./scripts/Start-DynatraceMcpServer.ps1
@@ -101,7 +101,7 @@ if ($isBatch) {
     foreach ($a in $npxArgs) { $null = $psi.ArgumentList.Add($a) }
 }
 $psi.UseShellExecute = $false
-# Do not redirect any stream — the MCP client owns this process's stdio.
+# Do not redirect any stream -- the MCP client owns this process's stdio.
 $psi.RedirectStandardOutput = $false
 $psi.RedirectStandardError  = $false
 $psi.RedirectStandardInput  = $false

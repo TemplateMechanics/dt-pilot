@@ -1,4 +1,4 @@
-# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/Sync-ConfigCatalog.ps1
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/monaco/Sync-ConfigCatalog.ps1
 # SPDX-License-Identifier: MIT
 # Scaffold for Alerting Profile (builtin:alerting.profile).
 # Copy this file to projects/<your-project>/builtin-alerting.profile/config.yaml and fill in the TODO values.

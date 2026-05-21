@@ -39,7 +39,7 @@ This is one-way; the generator owns the transformation. Don't try to author a co
 | alerting | `builtin:anomaly-detection.metric-events` | Metric-Event Anomaly Detection |
 | visualization | `builtin:dashboards` | Dashboard |
 
-Run `./scripts/Sync-ConfigCatalog.ps1` after editing the catalog and commit the regenerated `modules/configs/` files in the same PR.
+Run `./scripts/monaco/Sync-ConfigCatalog.ps1` after editing the catalog and commit the regenerated `modules/configs/` files in the same PR.
 
 ## How to add an entry
 
@@ -50,7 +50,7 @@ Run `./scripts/Sync-ConfigCatalog.ps1` after editing the catalog and commit the 
    - `scope` — `environment` is the right default; override only if the schema is host- / process-group- / entity-scoped by nature.
    - `summary` — one or two sentences. This text shows up in the generated `SCAFFOLD.md`.
    - `commonParameters` *(optional)* — the parameter names the generator should pre-declare in the scaffold's `config.yaml`. Pick the parameters you'd genuinely want to be named (a `name`, a reference to another config, a numeric threshold) — not every field of the underlying schema.
-2. Run `./scripts/Sync-ConfigCatalog.ps1` (no `-Check`) to regenerate the modules.
+2. Run `./scripts/monaco/Sync-ConfigCatalog.ps1` (no `-Check`) to regenerate the modules.
 3. Commit both the catalog edit and the regenerated `modules/configs/...` files in the same PR.
 4. The pre-commit gate (`Pre-Commit.ps1`) and CI's pre-commit-gate job run `Sync-ConfigCatalog.ps1 -Check`, which fails the PR if the modules drift from what the catalog would produce.
 

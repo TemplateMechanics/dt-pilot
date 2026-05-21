@@ -9,8 +9,9 @@
 
 BeforeAll {
     $script:RepoRoot   = Split-Path -Parent $PSScriptRoot
-    $script:ScriptDir  = Join-Path $script:RepoRoot 'scripts'
-    . (Join-Path $script:ScriptDir '_Common.ps1')
+    $script:ScriptDir  = Join-Path $script:RepoRoot 'scripts'         # repo-wide scripts (Pre-Commit, MCP helpers)
+    $script:MonacoDir  = Join-Path $script:ScriptDir 'monaco'         # Monaco backend wrappers (PR 'multi-backend skeleton')
+    . (Join-Path $script:MonacoDir '_Common.ps1')
 
     function New-TempWorkspace {
         param([string] $ManifestBody, [hashtable] $ProjectFiles)
@@ -192,7 +193,7 @@ Describe 'Test-MonacoManifest.ps1' {
             'alpha/keep.txt' = 'x'; 'custom-beta/keep.txt' = 'x'
         }
         try {
-            & (Join-Path $script:ScriptDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
+            & (Join-Path $script:MonacoDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         } finally {
             Remove-Item -LiteralPath $root -Recurse -Force
@@ -212,7 +213,7 @@ environmentGroups:
 '@
         $root = New-TempWorkspace -ManifestBody $bad -ProjectFiles @{ 'alpha/keep.txt' = 'x' }
         try {
-            & (Join-Path $script:ScriptDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
+            & (Join-Path $script:MonacoDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
             $LASTEXITCODE | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $root -Recurse -Force
@@ -237,7 +238,7 @@ environmentGroups:
 '@
         $root = New-TempWorkspace -ManifestBody $bad -ProjectFiles @{ 'alpha/keep.txt' = 'x' }
         try {
-            & (Join-Path $script:ScriptDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
+            & (Join-Path $script:MonacoDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
             $LASTEXITCODE | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $root -Recurse -Force
@@ -250,7 +251,7 @@ environmentGroups:
             'custom-beta/keep.txt' = 'x'
         }
         try {
-            & (Join-Path $script:ScriptDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
+            & (Join-Path $script:MonacoDir 'Test-MonacoManifest.ps1') -Path $root *>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         } finally {
             Remove-Item -LiteralPath $root -Recurse -Force
@@ -320,7 +321,7 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
             'custom-beta/config.yaml' = "configs: []`n"
         }
         try {
-            { & (Join-Path $script:ScriptDir 'Invoke-MonacoDeploy.ps1') `
+            { & (Join-Path $script:MonacoDir 'Invoke-MonacoDeploy.ps1') `
                 -Path $root -Environment dev `
                 -DryRunFile (Join-Path $root 'does-not-exist.json') `
                 -MonacoExe $script:fakeMonaco } | Should -Throw -ExpectedMessage '*does not exist*'
@@ -339,7 +340,7 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
             $out = Join-Path $root 'dryrun/staging.json'
             Write-DryRunMetadata -OutPath $out -ManifestPath $manifest -Environment 'staging' `
                                   -MonacoExe $script:fakeMonaco -ExitCode 0 -RawOutput ''
-            { & (Join-Path $script:ScriptDir 'Invoke-MonacoDeploy.ps1') `
+            { & (Join-Path $script:MonacoDir 'Invoke-MonacoDeploy.ps1') `
                 -Path $root -Environment dev -DryRunFile $out -MonacoExe $script:fakeMonaco } |
                 Should -Throw -ExpectedMessage "*environment 'staging'*"
         } finally {
@@ -361,7 +362,7 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
             $obj = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
             $obj.createdAtUtc = (Get-Date).AddMinutes(-99).ToUniversalTime().ToString('o')
             $obj | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $out -Encoding utf8
-            { & (Join-Path $script:ScriptDir 'Invoke-MonacoDeploy.ps1') `
+            { & (Join-Path $script:MonacoDir 'Invoke-MonacoDeploy.ps1') `
                 -Path $root -Environment dev -DryRunFile $out `
                 -MaxAgeMinutes 30 -MonacoExe $script:fakeMonaco } |
                 Should -Throw -ExpectedMessage '*minute(s) old*'
@@ -382,7 +383,7 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
                                   -MonacoExe $script:fakeMonaco -ExitCode 0 -RawOutput ''
             # Edit a project file AFTER the dry-run.
             Set-Content -LiteralPath (Join-Path $root 'alpha/config.yaml') -Value "configs: [ { id: new } ]`n" -Encoding utf8
-            { & (Join-Path $script:ScriptDir 'Invoke-MonacoDeploy.ps1') `
+            { & (Join-Path $script:MonacoDir 'Invoke-MonacoDeploy.ps1') `
                 -Path $root -Environment dev -DryRunFile $out -MonacoExe $script:fakeMonaco } |
                 Should -Throw -ExpectedMessage '*workspaceHash mismatch*'
         } finally {
@@ -391,9 +392,62 @@ Describe 'Invoke-MonacoDeploy.ps1 rejection paths' {
     }
 }
 
+Describe 'Compatibility shims at scripts/ root' {
+    BeforeAll {
+        $script:ExpectedShims = @(
+            'Get-MonacoVersion.ps1','Initialize-MonacoWorkspace.ps1','Invoke-MonacoDelete.ps1',
+            'Invoke-MonacoDeploy.ps1','Invoke-MonacoDownload.ps1','Invoke-MonacoDryRun.ps1',
+            'Invoke-MonacoGenerate.ps1','Sync-ConfigCatalog.ps1','Test-MonacoManifest.ps1','Validate-Monaco.ps1'
+        )
+    }
+
+    It 'every Monaco wrapper has a shim at scripts/ root and a target under scripts/monaco/' {
+        foreach ($name in $script:ExpectedShims) {
+            $shim = Join-Path $script:ScriptDir $name
+            (Test-Path -LiteralPath $shim -PathType Leaf) | Should -BeTrue -Because "shim $name must exist at scripts/ root"
+            $target = Join-Path $script:MonacoDir $name
+            (Test-Path -LiteralPath $target -PathType Leaf) | Should -BeTrue -Because "target $name must exist at scripts/monaco/"
+        }
+    }
+
+    It 'every shim writes a deprecation marker to stderr and forwards via splat with exit-code preservation' {
+        foreach ($name in $script:ExpectedShims) {
+            $shim = Join-Path $script:ScriptDir $name
+            $body = Get-Content -LiteralPath $shim -Raw
+            $body | Should -Match '\[Console\]::Error\.WriteLine'                  -Because "shim $name must write to stderr"
+            $body | Should -Match "\[deprecation\] scripts/$([regex]::Escape($name)) moved" -Because "shim $name must name itself in the deprecation marker"
+            $body | Should -Match '&\s+"\$PSScriptRoot/monaco/' + [regex]::Escape($name) + '"\s+@args' -Because "shim $name must forward via splat to scripts/monaco/"
+            $body | Should -Match 'exit \$LASTEXITCODE'                           -Because "shim $name must preserve the exit code"
+        }
+    }
+}
+
+Describe 'config/catalog/backends.json' {
+    It 'parses as JSON and declares at least one backend' {
+        $path = Join-Path $script:RepoRoot 'config/catalog/backends.json'
+        (Test-Path -LiteralPath $path -PathType Leaf) | Should -BeTrue
+        $reg = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        @($reg.backends).Count | Should -BeGreaterOrEqual 1
+    }
+
+    It 'every backend.scriptsDir, skill, catalogSyncScript, and manifestValidator exists on disk' {
+        $reg = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'config/catalog/backends.json') -Raw | ConvertFrom-Json
+        foreach ($b in $reg.backends) {
+            (Test-Path -LiteralPath (Join-Path $script:RepoRoot $b.scriptsDir) -PathType Container) | Should -BeTrue -Because "scriptsDir for $($b.id)"
+            (Test-Path -LiteralPath (Join-Path $script:RepoRoot $b.skill)       -PathType Leaf)      | Should -BeTrue -Because "skill for $($b.id)"
+            if ($b.PSObject.Properties['catalogSyncScript']) {
+                (Test-Path -LiteralPath (Join-Path $script:RepoRoot $b.catalogSyncScript) -PathType Leaf) | Should -BeTrue -Because "catalogSyncScript for $($b.id)"
+            }
+            if ($b.PSObject.Properties['manifestValidator']) {
+                (Test-Path -LiteralPath (Join-Path $script:RepoRoot $b.manifestValidator) -PathType Leaf) | Should -BeTrue -Because "manifestValidator for $($b.id)"
+            }
+        }
+    }
+}
+
 Describe 'Sync-ConfigCatalog.ps1' {
     It '-Check passes against the committed modules/configs/' {
-        & (Join-Path $script:ScriptDir 'Sync-ConfigCatalog.ps1') -Check *>&1 | Out-Null
+        & (Join-Path $script:MonacoDir 'Sync-ConfigCatalog.ps1') -Check *>&1 | Out-Null
         $LASTEXITCODE | Should -Be 0
     }
 }
@@ -406,7 +460,7 @@ Describe 'Invoke-MonacoDelete.ps1 rejection paths' {
         try {
             # Mandatory -Confirm:switch fails parameter binding when omitted;
             # we assert the failure surfaces as an exception.
-            { & (Join-Path $script:ScriptDir 'Invoke-MonacoDelete.ps1') `
+            { & (Join-Path $script:MonacoDir 'Invoke-MonacoDelete.ps1') `
                 -Path $root -Environment dev `
                 -DeleteFile (Join-Path $root 'nonexistent.yaml') } | Should -Throw
         } finally {
@@ -419,7 +473,7 @@ Describe 'Invoke-MonacoDelete.ps1 rejection paths' {
             'alpha/keep.txt' = 'x'; 'custom-beta/keep.txt' = 'x'
         }
         try {
-            { & (Join-Path $script:ScriptDir 'Invoke-MonacoDelete.ps1') `
+            { & (Join-Path $script:MonacoDir 'Invoke-MonacoDelete.ps1') `
                 -Path $root -Environment dev `
                 -DeleteFile (Join-Path $root 'nonexistent.yaml') -Confirm } |
                 Should -Throw -ExpectedMessage '*does not exist*'

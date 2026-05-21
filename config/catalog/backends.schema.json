@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://templatemechanics.github.io/dt-pilot/schemas/backends.schema.json",
+  "title": "dt-pilot backends registry",
+  "description": "Schema for config/catalog/backends.json - the authoritative registry of supported dt-pilot backends.",
+  "type": "object",
+  "required": ["version", "backends"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Registry schema version (semver-ish: major.minor)."
+    },
+    "backends": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/backend" }
+    }
+  },
+  "$defs": {
+    "backend": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName",
+        "skill",
+        "scriptsDir"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Backend identifier (kebab-case). Must be unique. Used as a dispatch key by tooling and as the canonical name in chat."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable name shown in tool output."
+        },
+        "skill": {
+          "type": "string",
+          "description": "Repo-relative path to the per-backend skill doc."
+        },
+        "agentPersona": {
+          "type": "string",
+          "description": "Repo-relative path to the per-backend agent persona, if one exists."
+        },
+        "scriptsDir": {
+          "type": "string",
+          "pattern": "^scripts/",
+          "description": "Repo-relative path to the backend's wrappers directory."
+        },
+        "catalogFile": {
+          "type": "string",
+          "description": "Repo-relative path to the backend's reflected catalog JSON, if it ships one."
+        },
+        "catalogSyncScript": {
+          "type": "string",
+          "description": "Repo-relative path to the catalog-sync script. Must accept '-Check'. Pre-Commit.ps1 iterates this across every backend."
+        },
+        "modulesDir": {
+          "type": "string",
+          "description": "Repo-relative path to the directory where catalog-sync writes generated scaffolds."
+        },
+        "manifestPattern": {
+          "type": "string",
+          "description": "Glob pattern (relative to repo root) matching manifest files this backend owns. Pre-Commit.ps1 finds matching files and runs the manifestValidator against each."
+        },
+        "manifestValidator": {
+          "type": "string",
+          "description": "Repo-relative path to a script that takes '-Path <manifest>' and exits non-zero on schema failure."
+        },
+        "detect": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/detectRule" },
+          "description": "Rules used by the Backend Routing section in CLAUDE.md (and by future Sync-McpServerEnablement.ps1) to decide whether this backend is active in a workspace. Detection is informational today; tooling will consume it as backends accumulate."
+        }
+      }
+    },
+    "detectRule": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["file-exists", "file-exists-recursive", "file-extension-present"],
+          "description": "Detection mechanism."
+        },
+        "path": {
+          "type": "string",
+          "description": "For 'file-exists': repo-relative path to check. For 'file-exists-recursive': starting path for a recursive search."
+        },
+        "glob": {
+          "type": "string",
+          "description": "For 'file-exists-recursive': glob pattern to match."
+        },
+        "extension": {
+          "type": "string",
+          "pattern": "^\\.",
+          "description": "For 'file-extension-present': extension to look for under the repo (e.g. '.tf')."
+        },
+        "match": {
+          "type": "string",
+          "description": "Optional content-shape token the detector should verify (e.g. 'monaco-manifest' means the matched file must contain a 'manifestVersion:' line). Reserved for future use; consumers should ignore unknown match tokens."
+        }
+      }
+    }
+  }
+}
