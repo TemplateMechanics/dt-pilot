@@ -65,7 +65,11 @@ Runs locally and in CI. Behavior:
 3. Build a new catalog entry per schema, **preserving the existing `family` and `commonParameters` values from the current `catalog.settings.json`** (those are curated, not generated). Overwrite `summary` and add a new `liveFields` array from the schema's `properties`. New schemas (not in the current catalog) get a default `family: misc` that a human must reassign during review.
 4. Write the new `catalog.settings.json`. The byte-exact `-Check` from Design 001 / current PR #8 applies.
 5. Run `Sync-ConfigCatalog.ps1` to regenerate `modules/configs/`. This step is byte-deterministic across PS editions (PR #8 fix).
-6. Exit non-zero if anything in step 2 fails (so a Dynatrace platform incident doesn't silently produce a stale catalog).
+6. Failure handling distinguishes two cases:
+   - **A specific schema fails to resolve** (e.g. the schema ID was renamed upstream). Log loudly and continue with the remaining schemas; the resulting PR body's "Schemas no longer resolvable" list flags the schema for the reviewer.
+   - **The Dynatrace environment is entirely unreachable** (transient platform incident, expired credential, DNS failure). Exit 0 with no PR opened and a loud log message; the next cron will retry. This matches Open Question #2 and intentionally avoids paging someone weekly during a DT incident.
+
+   The script never exits non-zero from the cron path. The only non-zero exits are operator-facing: invalid arguments, missing inputs file, malformed schemas.txt entries.
 
 ### Scheduled GitHub Action — `.github/workflows/catalog-refresh.yml`
 
@@ -144,7 +148,7 @@ A human merges. If the diff is large or surprising, a human can also push fixes 
 ## Open questions
 
 1. **Cron frequency.** Weekly seems right (Dynatrace schemas don't change daily; PR fatigue if more frequent). Confirm with the consumer.
-2. **What does the cron do if the source Dynatrace environment is unreachable?** Proposal: exit 0 (no diff, no PR), log loudly, and rely on the operator to notice. Failing the workflow run would page someone weekly during any DT incident, which is wrong.
+2. **What does the cron do if the source Dynatrace environment is unreachable?** Resolved in the "Failure handling" bullet above: exit 0, log loudly, rely on the operator to notice. Listed here for traceability against the original concern; can be removed once the implementation lands.
 3. **Should the auto-PR include a regenerated `docs/CONFIG-COVERAGE.md` "What's in the catalog today" table?** Proposal: yes. The table is derived from the catalog; keeping it in sync via the cron is free.
 4. **Do we need separate inputs files per environment** (e.g., a dev tenant has experimental schemas that prod doesn't)? Proposal: no. One curated inputs file; if you need experimental schemas, branch the inputs file in a feature PR.
 

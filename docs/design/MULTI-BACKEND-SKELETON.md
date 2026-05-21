@@ -18,7 +18,7 @@ dt-pilot today is Monaco-only. Real Dynatrace estates often need:
 Today's structure conflates "the harness contract" (dry-run-before-deploy, deletefile gating, MCP-first reads, secret hygiene, branch/PR discipline) with "the Monaco implementation of that contract." Adding a second backend would require either:
 
 1. Forking the harness per tool (`monaco-pilot`, `terraform-pilot`, `crossplane-pilot`, `pulumi-pilot`) — high duplication, drift between forks.
-2. Bolting per-tool scripts under `scripts/` next to the Monaco ones — directory becomes a mess, agent instructions become a if/elif tree.
+2. Bolting per-tool scripts under `scripts/` next to the Monaco ones — directory becomes a mess, agent instructions become an if/elif tree.
 
 Neither is acceptable. We need to separate the contract from the implementation.
 

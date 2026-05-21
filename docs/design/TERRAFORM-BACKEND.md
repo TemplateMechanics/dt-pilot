@@ -112,11 +112,11 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope:
 
 ### Auth integration
 
-The harness keeps its canonical environment variables (`DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) at the user-facing surface. The Terraform Dynatrace provider expects different names (`DT_ENV_URL`, `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET`, `DT_ACCOUNT_ID`). Mapping happens *inside* the wrappers, not in user-facing docs:
+The harness keeps its canonical environment variables (`DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) as the user-facing surface a developer or CI job sets. The Terraform Dynatrace provider expects different names (`DT_ENV_URL`, `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET`, `DT_ACCOUNT_ID`). The wrappers translate at runtime:
 
 - `Invoke-TerraformPlan.ps1` / `Invoke-TerraformApply.ps1` read the canonical env vars at start, then export the provider-specific names into the child Terraform process. The user sets the harness names once; the wrappers translate per-backend.
-- The committed Terraform's provider block references only the provider-specific names; the user never sees them outside the provider block.
-- `docs/AUTHENTICATION.md` documents the mapping in one place so a developer running Terraform outside the wrappers (rare; not supported, but readable) knows what to set.
+- The committed Terraform's provider block references only the provider-specific names; users never need to look at those names to operate dt-pilot.
+- `docs/AUTHENTICATION.md` carries a reference table of the canonical -> provider-specific mapping for the rare case of running Terraform outside the wrappers (not supported but readable).
 
 The committed Terraform pulls every credential from env vars; no hardcoded tokens. `Test-McpConfigSecrets.ps1` already scans for `dt0` token literals — its JSON-aware scanner would need an extension to also scan committed `.tf` files. That extension is part of this PR.
 
