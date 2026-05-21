@@ -1,0 +1,74 @@
+name: validate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit-gate:
+    name: Pre-commit gate (manifest + MCP secret hygiene + Pester)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # need at least 2 commits so -StagedOnly diff has a base
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run Pre-Commit gate (full, not -StagedOnly)
+        shell: pwsh
+        run: |
+          ./scripts/Pre-Commit.ps1 -All
+
+  manifest-validate:
+    name: Monaco dry-run on examples (best-effort)
+    runs-on: ubuntu-latest
+    # Independent job so a missing Monaco binary doesn't fail the whole
+    # workflow before the Pester / secret-hygiene gate has run.
+    continue-on-error: true
+    env:
+      MONACO_VERSION: '2.18.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Monaco
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d examples ] || [ -z "$(find examples -name manifest.yaml -print -quit)" ]; then
+            echo "No example manifests yet (PR 7 introduces examples/baseline-stack); skipping Monaco install."
+            exit 0
+          fi
+          curl -sSL -o /tmp/monaco "https://github.com/Dynatrace/dynatrace-configuration-as-code/releases/download/v${MONACO_VERSION}/monaco-linux-amd64"
+          chmod +x /tmp/monaco
+          echo "MONACO_EXE=/tmp/monaco" >> "$GITHUB_ENV"
+
+      - name: Validate every example manifest
+        shell: pwsh
+        run: |
+          if (-not (Test-Path env:MONACO_EXE)) {
+            Write-Host "No example manifests; skipping dry-run."
+            exit 0
+          }
+          $manifests = Get-ChildItem -Path examples -Filter manifest.yaml -Recurse -ErrorAction SilentlyContinue
+          $failed = $false
+          foreach ($m in $manifests) {
+            try {
+              ./scripts/Validate-Monaco.ps1 -Path $m.FullName
+            } catch {
+              Write-Host "FAILED: $($m.FullName) -> $_" -ForegroundColor Red
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
