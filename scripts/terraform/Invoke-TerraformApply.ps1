@@ -72,8 +72,21 @@ if ($ageMinExact -gt $MaxAgeMinutes) {
 }
 $ageMin = [Math]::Round($ageMinExact, 1)
 
-# Binary plan file must still exist at the path the envelope names.
-# Without it, `terraform apply <planfile>` has nothing to apply.
+# Working-directory match: enforce what the docstring promises. If the
+# envelope was produced for a different workspace path, the workspaceHash
+# check would also catch it -- but a clear up-front check produces a
+# better error message and protects against the rare same-content,
+# different-path case.
+if ($meta.workingDir) {
+    $envelopeWorkDir = (Resolve-Path -LiteralPath $meta.workingDir -ErrorAction SilentlyContinue)
+    if ($envelopeWorkDir -and ($envelopeWorkDir.ProviderPath -ne $workDir)) {
+        throw "Plan envelope was produced for workingDir '$($envelopeWorkDir.ProviderPath)' but -Path resolves to '$workDir'. Re-run Invoke-TerraformPlan.ps1 from the intended workspace, or run apply against the right -Path."
+    }
+}
+
+# Binary plan file must still exist at the (workdir-relative) path the
+# envelope names. Without it, `terraform apply <planfile>` has nothing
+# to apply.
 $planBin = $meta.planBinary
 if (-not [System.IO.Path]::IsPathRooted($planBin)) {
     $planBin = Join-Path $workDir $planBin
@@ -82,9 +95,9 @@ if (-not (Test-Path -LiteralPath $planBin -PathType Leaf)) {
     throw "Binary plan file recorded by the envelope no longer exists: $planBin. The plan and envelope must travel together; re-run Invoke-TerraformPlan.ps1."
 }
 
-# Translate canonical env vars to provider-specific names for the
-# child terraform process.
-Set-TerraformProviderEnv
+# Build the provider-specific env dict (passed to the child process
+# via -ExtraEnv; the parent shell's $env: stays untouched).
+$providerEnv = Get-TerraformProviderEnv
 
 Write-Host "Plan envelope verified:"
 Write-Host "  environment:      $($meta.environment)"
@@ -96,13 +109,10 @@ Write-Host ""
 Write-Host "Applying $workDir -> environment '$Environment'..." -ForegroundColor Cyan
 
 # terraform apply takes the binary plan path as a positional argument.
-# Pass the relative path (Terraform resolves it from the working dir).
-$planArg = if ([System.IO.Path]::IsPathRooted($meta.planBinary)) {
-    $meta.planBinary
-} else {
-    $meta.planBinary
-}
-$result = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('apply','-input=false', $planArg) -WorkingDirectory $workDir -CaptureOutput
+# The envelope stores the workdir-relative path, which Terraform
+# resolves from $workDir.
+$planArg = $meta.planBinary
+$result = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('apply','-input=false', $planArg) -WorkingDirectory $workDir -CaptureOutput -ExtraEnv $providerEnv
 if ($result.StdOut) { Write-Host $result.StdOut.TrimEnd() }
 if ($result.StdErr) { Write-Host $result.StdErr.TrimEnd() }
 if ($result.ExitCode -ne 0) {

@@ -12,12 +12,14 @@ dt-pilot reads credentials exclusively from environment variables. No tokens, OA
 
 You set the canonical names once. The backend-specific wrappers translate to the names each underlying tool expects:
 
-| Canonical (you set) | Monaco reads | Terraform provider reads (translated by `scripts/terraform/_Common.Set-TerraformProviderEnv`) |
+| Canonical (you set) | Monaco reads | Terraform provider reads (translation by `Get-TerraformProviderEnv` in `scripts/terraform/_Common.ps1`) |
 |---|---|---|
 | `DT_ENVIRONMENT` | `DT_ENVIRONMENT` | `DT_ENV_URL` |
 | `DT_PLATFORM_TOKEN` | `DT_PLATFORM_TOKEN` | `DT_API_TOKEN` |
 | `OAUTH_CLIENT_ID` | `OAUTH_CLIENT_ID` | `DT_CLIENT_ID` |
 | `OAUTH_CLIENT_SECRET` | `OAUTH_CLIENT_SECRET` | `DT_CLIENT_SECRET` |
+
+The translation is process-local: `Invoke-TerraformCommand` sets the provider-specific names on the child `terraform` process's environment block ONLY. Your interactive shell's `$env:` is never mutated.
 
 You never need to set the provider-specific names yourself. If you're running `terraform` directly outside the wrappers (rare; not the supported path), set the provider-specific names instead.
 

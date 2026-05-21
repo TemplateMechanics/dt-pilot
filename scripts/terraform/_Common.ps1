@@ -52,24 +52,24 @@ function Resolve-TerraformWorkingDir {
     return $resolved
 }
 
-function Set-TerraformProviderEnv {
+function Get-TerraformProviderEnv {
     [CmdletBinding()]
     param()
-    # Translate dt-pilot's canonical auth env vars to the names the
-    # dynatrace-oss/dynatrace provider expects. The user sets the
-    # canonical names once (DT_ENVIRONMENT / DT_PLATFORM_TOKEN /
-    # OAUTH_CLIENT_*) and the wrapper exports the provider-specific
-    # names into the child terraform process here.
-    #
-    # This is process-local: we mutate $env: which only persists for
-    # this PowerShell process and its children. No state leaks back to
-    # the shell that invoked the wrapper.
-    if ($env:DT_ENVIRONMENT)      { $env:DT_ENV_URL      = $env:DT_ENVIRONMENT }
-    if ($env:DT_PLATFORM_TOKEN)   { $env:DT_API_TOKEN    = $env:DT_PLATFORM_TOKEN }
-    if ($env:OAUTH_CLIENT_ID)     { $env:DT_CLIENT_ID    = $env:OAUTH_CLIENT_ID }
-    if ($env:OAUTH_CLIENT_SECRET) { $env:DT_CLIENT_SECRET= $env:OAUTH_CLIENT_SECRET }
-    # DT_ACCOUNT_ID has no canonical equivalent today; pass through if set.
-    # (Reserved for account-management workflows.)
+    # Build the canonical -> provider-specific env-var translation as a
+    # hashtable. Caller passes the result to Invoke-TerraformCommand
+    # -ExtraEnv so the child terraform process sees the provider names,
+    # but the parent PowerShell session's $env: is NOT mutated. (The
+    # earlier version mutated $env: directly, which leaked the
+    # provider-name vars back into the interactive shell after the
+    # wrapper returned -- a real source of cross-invocation contamination.)
+    $extra = @{}
+    if ($env:DT_ENVIRONMENT)      { $extra['DT_ENV_URL']       = $env:DT_ENVIRONMENT }
+    if ($env:DT_PLATFORM_TOKEN)   { $extra['DT_API_TOKEN']     = $env:DT_PLATFORM_TOKEN }
+    if ($env:OAUTH_CLIENT_ID)     { $extra['DT_CLIENT_ID']     = $env:OAUTH_CLIENT_ID }
+    if ($env:OAUTH_CLIENT_SECRET) { $extra['DT_CLIENT_SECRET'] = $env:OAUTH_CLIENT_SECRET }
+    # DT_ACCOUNT_ID has no canonical equivalent; pass through if set.
+    if ($env:DT_ACCOUNT_ID)       { $extra['DT_ACCOUNT_ID']    = $env:DT_ACCOUNT_ID }
+    return $extra
 }
 
 function Invoke-TerraformCommand {
@@ -78,7 +78,12 @@ function Invoke-TerraformCommand {
         [Parameter(Mandatory)] [string] $TerraformExe,
         [Parameter(Mandatory)] [string[]] $Arguments,
         [Parameter(Mandatory)] [string] $WorkingDirectory,
-        [switch] $CaptureOutput
+        [switch] $CaptureOutput,
+        # Optional name->value hashtable of extra env vars to set in the
+        # child terraform process WITHOUT mutating the parent
+        # PowerShell session's $env:. Callers pass the output of
+        # Get-TerraformProviderEnv here.
+        [hashtable] $ExtraEnv
     )
     Write-Verbose ("terraform {0}" -f ($Arguments -join ' '))
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
@@ -88,6 +93,14 @@ function Invoke-TerraformCommand {
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = [bool]$CaptureOutput
     $psi.RedirectStandardError  = [bool]$CaptureOutput
+    if ($ExtraEnv) {
+        # psi.Environment is pre-populated from the parent process; add
+        # / override the extras into THAT collection so the child sees
+        # them, but the parent's $env: is unchanged.
+        foreach ($k in $ExtraEnv.Keys) {
+            $psi.Environment[$k] = [string]$ExtraEnv[$k]
+        }
+    }
     $proc = [System.Diagnostics.Process]::Start($psi)
     if ($CaptureOutput) {
         # Async reads to avoid the stream-buffer deadlock that bit Monaco

@@ -34,9 +34,10 @@
         "run",
         "-i",
         "--rm",
-        "hashicorp/terraform-mcp-server:latest"
+        "hashicorp/terraform-mcp-server:0.6.0"
       ],
-      "disabled": true
+      "disabled": true,
+      "_comment": "Pin to a specific image tag (not :latest) so workspace setup is reproducible and upstream changes land via reviewed PRs. Bump intentionally."
     }
   },
   "inputs": [

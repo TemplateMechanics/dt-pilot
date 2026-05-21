@@ -35,7 +35,7 @@ All operations below route through the wrapper scripts in `scripts/terraform/`. 
 | Initialize / re-init | `./scripts/terraform/Initialize-TerraformWorkspace.ps1 -Path .` |
 | Format + validate | `./scripts/terraform/Validate-Terraform.ps1 -Path .` |
 | Plan (writes `tfplan` + `dryrun/<env>.json`) | `./scripts/terraform/Invoke-TerraformPlan.ps1 -Path . -Environment <env> -Out tfplan` |
-| Apply (saved plan) | `./scripts/terraform/Invoke-TerraformApply.ps1 -Path . -Environment <env> -PlanFile tfplan` |
+| Apply (saved plan) | `./scripts/terraform/Invoke-TerraformApply.ps1 -Path . -Environment <env> -PlanFile dryrun/<env>.json` |
 | Destroy (requires `-Confirm`) | `./scripts/terraform/Invoke-TerraformDestroy.ps1 -Path . -Environment <env> -Confirm` |
 | Versions | `./scripts/terraform/Get-TerraformVersion.ps1` |
 
@@ -50,7 +50,7 @@ All operations below route through the wrapper scripts in `scripts/terraform/`. 
 
 1. `./scripts/terraform/Invoke-TerraformPlan.ps1 -Path . -Environment <env> -Out tfplan`
 2. Read `dryrun/<env>.json` (the envelope sidecar) and report: resources added / changed / destroyed, the `terraformVersion`, the `workspaceHash` (so the user can confirm it's against the right source), every destroy and every change to a stateful resource (SLOs, alerting profiles, management zones, notification configs).
-3. After explicit approval: `./scripts/terraform/Invoke-TerraformApply.ps1 -Path . -Environment <env> -PlanFile tfplan`
+3. After explicit approval: `./scripts/terraform/Invoke-TerraformApply.ps1 -Path . -Environment <env> -PlanFile dryrun/<env>.json`
 4. If >30 minutes pass between steps 1 and 3, re-plan.
 
 ## Workflow

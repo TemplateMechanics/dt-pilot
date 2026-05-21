@@ -183,7 +183,7 @@ All operations route through `scripts/terraform/*.ps1`. Never type `terraform` d
 | Initialize / pull providers | `./scripts/terraform/Initialize-TerraformWorkspace.ps1 -Path .` | Calls `terraform init`. Re-run after editing `versions.tf` or `required_providers`. |
 | Format + validate | `./scripts/terraform/Validate-Terraform.ps1 -Path .` | Runs `terraform fmt -check` and `terraform validate`. Fast feedback loop. |
 | Produce a reviewable plan | `./scripts/terraform/Invoke-TerraformPlan.ps1 -Path . -Environment dev -Out tfplan` | Writes both `tfplan` (binary) and `dryrun/dev.json` (envelope). |
-| Apply a reviewed plan | `./scripts/terraform/Invoke-TerraformApply.ps1 -Path . -Environment dev -PlanFile tfplan` | Refuses without `-PlanFile`. Verifies schema, environment, workspace hash, freshness, planBinary existence. |
+| Apply a reviewed plan | `./scripts/terraform/Invoke-TerraformApply.ps1 -Path . -Environment dev -PlanFile dryrun/dev.json` | `-PlanFile` is the envelope JSON written by Invoke-TerraformPlan (NOT the binary `tfplan`; the envelope records the binary's relative path). Refuses without `-PlanFile`. Verifies schema, environment, workspace hash, freshness, planBinary existence, workingDir match. |
 | Destroy (irreversible) | `./scripts/terraform/Invoke-TerraformDestroy.ps1 -Path . -Environment dev -Confirm` | Refuses without explicit `-Confirm`. Echoes resources before invoking. |
 | Print version | `./scripts/terraform/Get-TerraformVersion.ps1` | Repo-wide diagnostic (no `-Path`). |
 | Refresh scaffolds | `./scripts/terraform/Sync-TerraformCatalog.ps1` (or `-Check` in CI) | Regenerates `modules/terraform/configs/<family>/<resource>/`. |

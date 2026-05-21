@@ -18,8 +18,9 @@
     Directory containing the .tf files.
 
 .PARAMETER Environment
-    Environment label used for the destroy plan envelope (matches the
-    Plan/Apply naming).
+    Environment label printed in the destroy preview and confirmation
+    output. Provides operator context only -- destroy does not produce
+    a saved envelope (Plan and Apply do).
 
 .PARAMETER VarFile
     Optional -var-file (e.g. 'envs/dev.tfvars').
@@ -54,14 +55,14 @@ if (-not $Confirm) {
 $exe     = Resolve-TerraformExe -TerraformExe $TerraformExe
 $workDir = Resolve-TerraformWorkingDir -Path $Path
 
-Set-TerraformProviderEnv
+$providerEnv = Get-TerraformProviderEnv
 
 # Show the destroy plan first so the operator gets one last preview.
 $planArgs = @('plan','-destroy','-input=false')
 if ($VarFile) { $planArgs += @('-var-file', $VarFile) }
 
 Write-Host "Destroy preview (terraform plan -destroy)..." -ForegroundColor Yellow
-$preview = Invoke-TerraformCommand -TerraformExe $exe -Arguments $planArgs -WorkingDirectory $workDir -CaptureOutput
+$preview = Invoke-TerraformCommand -TerraformExe $exe -Arguments $planArgs -WorkingDirectory $workDir -CaptureOutput -ExtraEnv $providerEnv
 if ($preview.StdOut) { Write-Host $preview.StdOut.TrimEnd() }
 if ($preview.StdErr) { Write-Host $preview.StdErr.TrimEnd() }
 if ($preview.ExitCode -ne 0) {
@@ -77,7 +78,7 @@ Write-Host ""
 $destroyArgs = @('destroy','-input=false','-auto-approve')
 if ($VarFile) { $destroyArgs += @('-var-file', $VarFile) }
 
-$result = Invoke-TerraformCommand -TerraformExe $exe -Arguments $destroyArgs -WorkingDirectory $workDir -CaptureOutput
+$result = Invoke-TerraformCommand -TerraformExe $exe -Arguments $destroyArgs -WorkingDirectory $workDir -CaptureOutput -ExtraEnv $providerEnv
 if ($result.StdOut) { Write-Host $result.StdOut.TrimEnd() }
 if ($result.StdErr) { Write-Host $result.StdErr.TrimEnd() }
 if ($result.ExitCode -ne 0) {

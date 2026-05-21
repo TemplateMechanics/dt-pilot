@@ -50,7 +50,7 @@ dt-pilot's Terraform backend is opinionated about state:
   - **AWS:** S3 (versioned, encrypted) + DynamoDB locking.
   - **Azure:** Azure Blob (versioned, encrypted) + container locking.
   - **GCP:** GCS (versioned, encrypted) — locking via state-locking serverless project.
-  - **HCP Terraform / Terraform Cloud:** Hashicorp-hosted state + native locking.
+  - **HCP Terraform / Terraform Cloud:** HashiCorp-hosted state + native locking.
 - **Never commit `terraform.tfstate`.** `.gitignore` covers it; double-check before staging.
 - **The state file contains secrets** (everything `sensitive = true` is still in plaintext in state). Encrypt at rest, restrict IAM access to the deploy role only.
 

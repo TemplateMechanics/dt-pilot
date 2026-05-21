@@ -195,10 +195,13 @@ foreach ($file in $tfTargets) {
         if ($line -match $tfArgRegex) {
             $argName = $Matches[1]
             $argVal  = $Matches[2]
-            # Allow ${var.x}, ${local.x}, ${data.x.y}, ${module.x.y}
-            # interpolations -- those resolve to runtime values, not
-            # committed secrets.
-            if ($argVal -notmatch '^\$\{(var|local|data|module)\.') {
+            # Allow any string that CONTAINS a ${var.x}, ${local.x},
+            # ${data.x.y}, or ${module.x.y} interpolation -- those
+            # resolve to runtime values, not committed secrets.
+            # (The previous `^\$\{...` anchor would false-positive on
+            # 'https://${var.tenant}/path' which contains but doesn't
+            # start with an interpolation.)
+            if ($argVal -notmatch '\$\{(var|local|data|module)\.') {
                 $findings.Add(("{0}  ({1}): provider argument '{2}' set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $loc, $argName))
             }
         }

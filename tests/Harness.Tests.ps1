@@ -898,6 +898,46 @@ Describe 'Terraform backend (Design 003)' {
             return $root
         }
 
+        # Pester scopes functions defined in a Context's BeforeAll to that
+        # Context only; defining here at the Describe scope makes them
+        # visible to every It block under any Context.
+        function New-TfPlanArtifacts {
+            param(
+                [string] $WorkingDir,
+                [string] $Environment,
+                [string] $Schema = 'dt-pilot.tfplan/v1',
+                [int]    $ExitCode = 0,
+                [string] $CreatedAtUtc,
+                [string] $WorkspaceHash,
+                [switch] $SkipBinary
+            )
+            if (-not $CreatedAtUtc)  { $CreatedAtUtc  = (Get-Date).ToUniversalTime().ToString('o') }
+            if (-not $WorkspaceHash) { $WorkspaceHash = Get-TerraformWorkspaceHash -WorkingDir $WorkingDir }
+            $planRel = 'tfplan'
+            $planBin = Join-Path $WorkingDir $planRel
+            if (-not $SkipBinary) {
+                Set-Content -LiteralPath $planBin -Value 'fake binary plan' -Encoding utf8
+            }
+            $envelope = [ordered]@{
+                schema           = $Schema
+                createdAtUtc     = $CreatedAtUtc
+                environment      = $Environment
+                workingDir       = $WorkingDir
+                workspaceHash    = $WorkspaceHash
+                terraformVersion = '1.10.0'
+                terraformExe     = $script:FakeTfExe
+                exitCode         = $ExitCode
+                summary          = [ordered]@{ wouldAdd = 0; wouldChange = 0; wouldDestroy = 0 }
+                planBinary       = $planRel
+                planJsonSummary  = ''
+            }
+            $envPath = Join-Path $WorkingDir 'dryrun.json'
+            $dir = Split-Path -Parent $envPath
+            if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+            $envelope | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $envPath -Encoding utf8
+            return @{ Envelope = $envPath; Binary = $planBin }
+        }
+
         # Fake terraform binary path -- _Common.Resolve-TerraformExe checks
         # the file exists but the wrappers' rejection paths all fire before
         # we'd actually launch it. Re-use the Pester test file itself,
@@ -934,22 +974,19 @@ Describe 'Terraform backend (Design 003)' {
         }
     }
 
-    Context '_Common.Set-TerraformProviderEnv' {
-        It 'translates DT_ENVIRONMENT -> DT_ENV_URL and DT_PLATFORM_TOKEN -> DT_API_TOKEN' {
+    Context '_Common.Get-TerraformProviderEnv' {
+        It 'returns DT_ENVIRONMENT -> DT_ENV_URL and DT_PLATFORM_TOKEN -> DT_API_TOKEN' {
             # Save and restore so we don't pollute the test runner env.
             $origs = @{}
-            foreach ($n in @('DT_ENVIRONMENT','DT_PLATFORM_TOKEN','OAUTH_CLIENT_ID','OAUTH_CLIENT_SECRET',
-                              'DT_ENV_URL','DT_API_TOKEN','DT_CLIENT_ID','DT_CLIENT_SECRET')) {
+            foreach ($n in @('DT_ENVIRONMENT','DT_PLATFORM_TOKEN','OAUTH_CLIENT_ID','OAUTH_CLIENT_SECRET','DT_ACCOUNT_ID')) {
                 $origs[$n] = [System.Environment]::GetEnvironmentVariable($n)
             }
             try {
                 $env:DT_ENVIRONMENT    = 'https://example.test.dynatrace.com'
                 $env:DT_PLATFORM_TOKEN = 'dt-pilot-test-platform-token'
-                $env:DT_ENV_URL        = $null
-                $env:DT_API_TOKEN      = $null
-                Set-TerraformProviderEnv
-                $env:DT_ENV_URL   | Should -Be 'https://example.test.dynatrace.com'
-                $env:DT_API_TOKEN | Should -Be 'dt-pilot-test-platform-token'
+                $extra = Get-TerraformProviderEnv
+                $extra['DT_ENV_URL']   | Should -Be 'https://example.test.dynatrace.com'
+                $extra['DT_API_TOKEN'] | Should -Be 'dt-pilot-test-platform-token'
             } finally {
                 foreach ($k in $origs.Keys) {
                     if ($null -eq $origs[$k]) {
@@ -961,19 +998,17 @@ Describe 'Terraform backend (Design 003)' {
             }
         }
 
-        It 'translates OAUTH_CLIENT_ID/SECRET -> DT_CLIENT_ID/SECRET' {
+        It 'returns OAUTH_CLIENT_ID/SECRET -> DT_CLIENT_ID/SECRET' {
             $origs = @{}
-            foreach ($n in @('OAUTH_CLIENT_ID','OAUTH_CLIENT_SECRET','DT_CLIENT_ID','DT_CLIENT_SECRET')) {
+            foreach ($n in @('OAUTH_CLIENT_ID','OAUTH_CLIENT_SECRET','DT_ENVIRONMENT','DT_PLATFORM_TOKEN','DT_ACCOUNT_ID')) {
                 $origs[$n] = [System.Environment]::GetEnvironmentVariable($n)
             }
             try {
                 $env:OAUTH_CLIENT_ID     = 'tf-test-client-id'
                 $env:OAUTH_CLIENT_SECRET = 'tf-test-client-secret'
-                $env:DT_CLIENT_ID        = $null
-                $env:DT_CLIENT_SECRET    = $null
-                Set-TerraformProviderEnv
-                $env:DT_CLIENT_ID     | Should -Be 'tf-test-client-id'
-                $env:DT_CLIENT_SECRET | Should -Be 'tf-test-client-secret'
+                $extra = Get-TerraformProviderEnv
+                $extra['DT_CLIENT_ID']     | Should -Be 'tf-test-client-id'
+                $extra['DT_CLIENT_SECRET'] | Should -Be 'tf-test-client-secret'
             } finally {
                 foreach ($k in $origs.Keys) {
                     if ($null -eq $origs[$k]) {
@@ -982,6 +1017,20 @@ Describe 'Terraform backend (Design 003)' {
                         Set-Item -Path "env:$k" -Value $origs[$k]
                     }
                 }
+            }
+        }
+
+        It 'does NOT mutate the parent process env (returns dict only)' {
+            $origDtUrl = [System.Environment]::GetEnvironmentVariable('DT_ENV_URL')
+            try {
+                $env:DT_ENV_URL     = $null
+                $env:DT_ENVIRONMENT = 'https://parent-shell-test.dynatrace.com'
+                $null = Get-TerraformProviderEnv
+                # The function returned a dict; it must NOT have set $env:DT_ENV_URL.
+                $env:DT_ENV_URL | Should -BeNullOrEmpty
+            } finally {
+                if ($null -eq $origDtUrl) { Remove-Item -Path 'env:DT_ENV_URL' -ErrorAction SilentlyContinue }
+                else                       { Set-Item   -Path 'env:DT_ENV_URL' -Value $origDtUrl }
             }
         }
     }
@@ -1060,43 +1109,8 @@ Describe 'Terraform backend (Design 003)' {
     }
 
     Context 'Invoke-TerraformApply.ps1 rejection paths' {
-        # Helper that writes a complete envelope + binary plan file pair so
-        # the apply wrapper has something to reject.
-        function New-TfPlanArtifacts {
-            param(
-                [string] $WorkingDir,
-                [string] $Environment,
-                [string] $Schema = 'dt-pilot.tfplan/v1',
-                [int]    $ExitCode = 0,
-                [string] $CreatedAtUtc,
-                [string] $WorkspaceHash,
-                [switch] $SkipBinary
-            )
-            if (-not $CreatedAtUtc)  { $CreatedAtUtc  = (Get-Date).ToUniversalTime().ToString('o') }
-            if (-not $WorkspaceHash) { $WorkspaceHash = Get-TerraformWorkspaceHash -WorkingDir $WorkingDir }
-            $planBin = Join-Path $WorkingDir 'tfplan'
-            if (-not $SkipBinary) {
-                Set-Content -LiteralPath $planBin -Value 'fake binary plan' -Encoding utf8
-            }
-            $envelope = [ordered]@{
-                schema           = $Schema
-                createdAtUtc     = $CreatedAtUtc
-                environment      = $Environment
-                workingDir       = $WorkingDir
-                workspaceHash    = $WorkspaceHash
-                terraformVersion = '1.10.0'
-                terraformExe     = $script:FakeTfExe
-                exitCode         = $ExitCode
-                summary          = [ordered]@{ wouldAdd = 0; wouldChange = 0; wouldDestroy = 0 }
-                planBinary       = $planBin
-                planJsonSummary  = ''
-            }
-            $envPath = Join-Path $WorkingDir 'dryrun.json'
-            $dir = Split-Path -Parent $envPath
-            if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
-            $envelope | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $envPath -Encoding utf8
-            return @{ Envelope = $envPath; Binary = $planBin }
-        }
+        # Uses New-TfPlanArtifacts defined in the Describe-level BeforeAll
+        # so the function is visible to every It block here.
 
         It 'rejects a missing PlanFile' {
             $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
