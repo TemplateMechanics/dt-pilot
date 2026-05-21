@@ -119,6 +119,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
+          # Pwsh 7+ knob that promotes non-zero exit codes from native
+          # commands (git, gh) to terminating errors. Without this,
+          # $ErrorActionPreference = 'Stop' applies only to PowerShell
+          # cmdlet errors and a 'git stash pop' merge conflict would
+          # silently leave a half-applied tree to commit + push.
+          $PSNativeCommandUseErrorActionPreference = $true
           $date    = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
           $branch  = "chore/catalog-refresh-$date"
 

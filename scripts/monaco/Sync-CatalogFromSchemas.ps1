@@ -410,16 +410,29 @@ $schemaIds = Read-SchemasInputFile -Path $InputsPath
 $existing  = Read-ExistingCatalog  -Path $OutputPath
 
 # Validate setup prerequisites UP FRONT (non-zero exit on failure) so
-# operator-facing problems (Monaco not installed, MONACO_EXE invalid)
-# can't get silently swallowed by the per-schema try/catch below and
-# treated as a transient "environment unreachable" condition. We skip
-# this check when a -FetchSchemaScript stub is provided since the stub
-# replaces the real monaco invocation entirely.
+# operator-facing problems can't get silently swallowed by the
+# per-schema try/catch below and treated as a transient
+# "environment unreachable" condition. We skip these checks when a
+# -FetchSchemaScript stub is provided since the stub replaces the real
+# monaco invocation entirely.
 if (-not $FetchSchemaScript) {
-    # Throws with a clear, operator-facing message if monaco cannot be
-    # resolved (see _Common.Resolve-MonacoExe). Failure here exits the
-    # script non-zero rather than mass-marking every schema as unresolved.
+    # 1. Monaco must be locatable.
     $null = Resolve-MonacoExe -MonacoExe $MonacoExe
+
+    # 2. Dynatrace tenant URL must be set; otherwise monaco will fail per
+    # schema and the loop will mark every ID 'unresolvable', producing a
+    # bogus catalog refresh PR full of TODO placeholders. Fail fast and
+    # loud instead.
+    if (-not $env:DT_ENVIRONMENT) {
+        throw "DT_ENVIRONMENT is not set. Sync-CatalogFromSchemas.ps1 needs a Dynatrace platform URL to fetch live schemas. Set DT_ENVIRONMENT (and one of DT_PLATFORM_TOKEN or OAUTH_CLIENT_ID+OAUTH_CLIENT_SECRET) before running, or pass -FetchSchemaScript for offline test use."
+    }
+
+    # 3. At least one auth path must be configured.
+    $hasPlatformToken = [bool]$env:DT_PLATFORM_TOKEN
+    $hasOAuth         = ([bool]$env:OAUTH_CLIENT_ID) -and ([bool]$env:OAUTH_CLIENT_SECRET)
+    if (-not ($hasPlatformToken -or $hasOAuth)) {
+        throw "No Dynatrace credentials available. Set DT_PLATFORM_TOKEN, or both OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET, before running Sync-CatalogFromSchemas.ps1."
+    }
 }
 
 $unresolved      = New-Object System.Collections.Generic.List[string]
