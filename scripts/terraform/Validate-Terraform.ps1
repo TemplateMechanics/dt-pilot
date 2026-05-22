@@ -47,6 +47,10 @@ if (-not $SkipFmt) {
     Write-Host "terraform fmt -check"
     $fmt = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('fmt','-check','-recursive') -WorkingDirectory $workDir -CaptureOutput
     if ($fmt.StdOut) { Write-Host $fmt.StdOut.TrimEnd() }
+    # Print StdErr too -- terraform fmt often emits the actual
+    # "couldn't read file" / "invalid HCL" details to stderr and hiding
+    # it leaves the operator with just an exit code and no diagnostic.
+    if ($fmt.StdErr) { Write-Host $fmt.StdErr.TrimEnd() }
     if ($fmt.ExitCode -ne 0) {
         Write-Host "fmt FAILED (run 'terraform fmt -recursive' to fix)" -ForegroundColor Red
         $failed = $true

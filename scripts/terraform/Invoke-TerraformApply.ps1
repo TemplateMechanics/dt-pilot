@@ -112,8 +112,29 @@ if (-not $envelopeNorm.Equals($currentNorm, $pathCmp)) {
 
 # Binary plan file must still exist at the (workdir-relative) path the
 # envelope names. Without it, `terraform apply <planfile>` has nothing
-# to apply.
-$planBin = $meta.planBinary
+# to apply. Validate presence + shape of the field BEFORE calling
+# IsPathRooted, which throws an ArgumentNullException on $null and is
+# a poor diagnostic when the real problem is a malformed envelope.
+$hasPlanBinary = [bool]($meta.PSObject.Properties['planBinary']) -and $meta.planBinary
+if (-not $hasPlanBinary) {
+    throw "Plan envelope is missing the 'planBinary' field; refusing to apply. Re-run Invoke-TerraformPlan.ps1 to produce a valid envelope."
+}
+if ($meta.planBinary -isnot [string]) {
+    throw "Plan envelope's 'planBinary' is not a string (got type $($meta.planBinary.GetType().FullName)); refusing to apply from a malformed envelope."
+}
+# Reject path traversal explicitly. The envelope contract is that
+# planBinary is a path RELATIVE to workingDir and stays inside it;
+# Write-TfPlanMetadata enforces that when producing the envelope. A
+# `../../` in the recorded value either means someone hand-edited the
+# envelope or `-Out` was given an out-of-workspace absolute path at
+# plan time (which Invoke-TerraformPlan.ps1 now also refuses). Either
+# way the apply step shouldn't reach outside the workdir to find its
+# plan -- those don't "travel together inside the workspace" any more.
+$planBinRaw = $meta.planBinary
+if ($planBinRaw -match '(^|[\\/])\.\.([\\/]|$)') {
+    throw "Plan envelope's 'planBinary' contains a path traversal ('..'): $planBinRaw. Plans must live inside the workspace they were produced for; re-run Invoke-TerraformPlan.ps1 with -Out under the working directory."
+}
+$planBin = $planBinRaw
 if (-not [System.IO.Path]::IsPathRooted($planBin)) {
     $planBin = Join-Path $workDir $planBin
 }

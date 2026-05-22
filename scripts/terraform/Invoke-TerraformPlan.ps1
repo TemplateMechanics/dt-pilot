@@ -138,13 +138,36 @@ if ($planResult.ExitCode -eq 0) {
 }
 
 $envelopePath = if ([System.IO.Path]::IsPathRooted($EnvelopeOut)) { $EnvelopeOut } else { (Join-Path (Get-Location).Path $EnvelopeOut) }
+
 # Store planBinary as the workdir-relative path so the envelope is
 # portable across checkouts / agents / docker mounts. The apply wrapper
 # re-roots against the workdir it was invoked with.
-$planBinRelative = if ([System.IO.Path]::IsPathRooted($Out)) {
-    [System.IO.Path]::GetRelativePath($workDir, $Out).Replace('\','/')
+#
+# Two failure modes the apply step can no longer compensate for, so
+# refuse them here at plan time:
+#   1. An absolute -Out that points OUTSIDE the working directory.
+#      GetRelativePath would emit '../../...' and the apply wrapper now
+#      explicitly rejects '..' in planBinary as path traversal -- so
+#      the resulting envelope would be unappliable. Catch it here with
+#      a clearer message instead.
+#   2. A relative -Out that already contains '..' (e.g. '-Out ../tfplan'
+#      writing one directory up from $workDir). Same problem: the apply
+#      wrapper would refuse the resulting envelope.
+# The contract is "the plan and envelope travel together inside the
+# workspace" -- which only holds if the binary plan IS inside the
+# workspace.
+if ([System.IO.Path]::IsPathRooted($Out)) {
+    $rootedFull = [System.IO.Path]::GetFullPath($Out)
+    $workFull   = [System.IO.Path]::GetFullPath($workDir).TrimEnd('\','/') + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $rootedFull.StartsWith($workFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "-Out '$Out' resolves to a path outside the working directory '$workDir'. The binary plan must live inside the workspace it was produced for; pass a workdir-relative -Out (e.g. 'tfplan' or 'plans/dev.tfplan') or omit -Out to use the default."
+    }
+    $planBinRelative = [System.IO.Path]::GetRelativePath($workDir, $Out).Replace('\','/')
 } else {
-    $Out.Replace('\','/')
+    if ($Out -match '(^|[\\/])\.\.([\\/]|$)') {
+        throw "-Out '$Out' contains a '..' traversal that would escape the working directory. Pass a path that stays under '$workDir'."
+    }
+    $planBinRelative = $Out.Replace('\','/')
 }
 
 Write-TfPlanMetadata `
