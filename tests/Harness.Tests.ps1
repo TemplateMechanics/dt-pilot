@@ -30,6 +30,31 @@ BeforeAll {
         return $root
     }
 
+    # Centralized scanner-injection helper used by every secret-scanner
+    # integration test. The pre-extract version copy-pasted the same
+    # 7-line block (read scanner source, escape apostrophes in temp path,
+    # rewrite $PSScriptRoot, write rewritten script, create scripts/ dir,
+    # invoke under pwsh, capture LASTEXITCODE) into ~10 It blocks across
+    # multiple Describes. Centralizing here makes future scanner-shape
+    # edits land in one place instead of ten.
+    function Invoke-IsolatedScanner {
+        param([Parameter(Mandatory)] [string] $TmpRepoRoot)
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        # Single-quoted PS literal embedding: a literal apostrophe is
+        # two apostrophes. Without this, a Windows profile path like
+        # C:\Users\O'Connor\... breaks the injected source.
+        $rootEscaped = $TmpRepoRoot.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$rootEscaped/scripts'")
+        $copy = Join-Path $TmpRepoRoot 'scan.ps1'
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $scriptsDir = Join-Path $TmpRepoRoot 'scripts'
+        if (-not (Test-Path -LiteralPath $scriptsDir)) {
+            $null = New-Item -ItemType Directory -Path $scriptsDir
+        }
+        & pwsh -NoProfile -File $copy *>&1 | Out-Null
+        return $LASTEXITCODE
+    }
+
     $script:MinimalManifest = @'
 manifestVersion: 1.0
 
@@ -284,27 +309,8 @@ Describe 'Test-McpConfigSecrets.ps1' {
         $target = Join-Path $tmpDir '.vscode/mcp.json'
         Set-Content -LiteralPath $target -Value $bad -Encoding utf8
 
-        # Build a temp script that invokes the scanner against our temp
-        # file by string-replacing $PSScriptRoot with our temp path.
-        # Use .Replace() (literal substring), NOT -replace, because
-        # -replace runs the second arg through .NET regex replacement
-        # rules and a Windows path containing backslashes would be
-        # mangled into escape sequences (\t, \n, etc).
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1445,23 +1451,8 @@ provider "dynatrace" {
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
 
-        # Override $PSScriptRoot via string substitution so the scanner
-        # treats $tmpDir as the repo root.
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1483,16 +1474,8 @@ EOF
 "@
         Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
 
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1516,21 +1499,8 @@ resource "dynatrace_notification" "webhook" {
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'main.tf') -Value $good -Encoding utf8
 
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 0
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 0
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1549,21 +1519,8 @@ provider "dynatrace" {
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
 
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1581,21 +1538,8 @@ resource "dynatrace_management_zone_v2" "x" {
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'main.tf') -Value $good -Encoding utf8
 
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 0
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 0
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1615,21 +1559,8 @@ dt_env_url = "https://abc12345.live.dynatrace.com"
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars') -Value $bad -Encoding utf8
 
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1650,21 +1581,8 @@ dt_env_url = "https://abc12345.live.dynatrace.com"
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars.json') -Value $bad -Encoding utf8
 
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }
@@ -1680,21 +1598,8 @@ owner      = "platform@example.test"
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars') -Value $good -Encoding utf8
 
-        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
-        $copy = Join-Path $tmpDir 'scan.ps1'
-        # Escape single quotes in $tmpDir before embedding in the
-        # single-quoted PS literal we're injecting -- a temp path like
-        # C:\Users\O'Connor\... would otherwise produce syntactically
-        # invalid PS source. PowerShell single-quoted string escape:
-        # a literal single quote is written as two single quotes.
-        $tmpDirEscaped = $tmpDir.Replace("'", "''")
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
-        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
-        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
-
         try {
-            & pwsh -NoProfile -File $copy *>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 0
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 0
         } finally {
             Remove-Item -LiteralPath $tmpDir -Recurse -Force
         }

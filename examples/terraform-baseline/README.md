@@ -24,6 +24,7 @@ Copy this folder as the starting point for a new Terraform-managed Dynatrace est
 | `main.tf` | Four resources + two outputs. |
 | `envs/dev.tfvars`, `envs/prod.tfvars` | Per-environment shareable values; committed. |
 | `envs/<env>.local.tfvars` | Per-developer overrides; **gitignored**. |
+| `.terraform.lock.hcl` | Provider hash lockfile produced by `Initialize-TerraformWorkspace.ps1` (first `terraform init`). **Commit it** -- the apply-time workspace-hash gate includes it, so an uncommitted lockfile means every plan made on a fresh checkout invalidates against your colleague's. Re-running init updates it when versions.tf changes. Not shipped in the example skeleton because it's tenant-version-specific; you generate yours on first init. |
 
 ## Required environment variables
 
