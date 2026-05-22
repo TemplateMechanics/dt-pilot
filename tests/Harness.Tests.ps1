@@ -1285,6 +1285,65 @@ provider "dynatrace" {
         }
     }
 
+    It "does NOT flag a non-provider 'url = ...' literal (webhook / HTTP data source)" {
+        # Pass-6 false-positive that motivated dropping 'url' from the
+        # inline-arg regex. A webhook URL pointing at a non-Dynatrace
+        # endpoint inside a non-provider block must NOT block the commit
+        # -- those are legitimate.
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfwebhook-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $good = @'
+resource "dynatrace_notification" "webhook" {
+  name             = "ops-webhook"
+  alerting_profile = dynatrace_alerting.x.id
+  webhook {
+    url = "https://hooks.example.com/dt-pilot-ops"
+  }
+}
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'main.tf') -Value $good -Encoding utf8
+
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
+    It "STILL flags a hardcoded *.live.dynatrace.com url even without the inline-arg rule" {
+        # Even though 'url' is no longer in $tfArgRegex, the live-tenant
+        # URL regex must still catch a hardcoded Dynatrace tenant URL.
+        # This is the load-bearing leak case.
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tftenant-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $bad = @'
+provider "dynatrace" {
+  url = "https://xyz98765.live.dynatrace.com"
+}
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
+
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 1
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
     It 'does NOT flag a .tf file that reads everything via var. references' {
         $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfok-" + [System.Guid]::NewGuid().ToString('N'))
         $null = New-Item -ItemType Directory -Path $tmpDir
@@ -1383,7 +1442,7 @@ Describe 'Sync-TerraformCatalog.ps1' {
         $content | Should -Not -Match 'zone_name\s*=\s*var\.zone_name'
     }
 
-    It 'falls back to <name> = var.<name> with a TODO marker when no providerArgument is set' {
+    It 'falls back to var-name LHS with a TODO marker when no providerArgument is set' {
         # SLO's management_zone_id intentionally has no providerArgument
         # (it feeds the filter string, not a top-level arg). The scaffold
         # must keep the fall-back shape with the TODO so the operator

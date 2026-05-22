@@ -18,14 +18,19 @@
        anywhere in the repo. Line-by-line regex scan. The convention
        is that the dynatrace provider reads every credential from env
        vars at runtime, so the scanner flags any inline credential
-       argument (url, api_token, client_id, client_secret, account_id)
+       argument (api_token, client_id, client_secret, account_id)
        whose value is a string literal rather than a var./local./data.
-       reference. tfvars coverage matters because "I'll just put it in
-       dev.tfvars for now" is one of the most common ways a token leaks
-       into the repo. Per-developer tfvars files (the .gitignored
-       envs/*.local.tfvars / envs/*.local.tfvars.json convention) are
-       excluded from the full-repo walk so a local scratch file does
-       not block your push.
+       reference. `url` is deliberately NOT on the inline-arg list --
+       it is a common, legitimate argument name in non-provider blocks
+       (webhook endpoints, HTTP data sources, dashboard tiles), and
+       the live-tenant-URL regex below already catches the only `url`
+       value we actually care about: a hardcoded *.live.dynatrace.com /
+       *.apps.dynatrace.com / *.dynatracelabs.com host. tfvars coverage
+       matters because "I'll just put it in dev.tfvars for now" is
+       one of the most common ways a token leaks into the repo. Per-
+       developer tfvars files (the .gitignored envs/*.local.tfvars /
+       envs/*.local.tfvars.json convention) are excluded from the full-
+       repo walk so a local scratch file does not block your push.
 
     Patterns detected in BOTH file types:
         - Dynatrace token literals (any dt0XX. prefix family)
@@ -200,13 +205,23 @@ foreach ($file in $mcpTargets) {
 # .tf scan: line-by-line regex check for the three general patterns
 # (token literal, live tenant URL, bearer-in-URL) plus the Terraform-
 # specific inline-provider-argument heuristic. A line like
-# `url = "https://..."`, `api_token = "..."`, `client_id = "..."`,
-# `client_secret = "..."`, or `account_id = "..."` whose right-hand
-# side is a string literal (not a var./local./data. reference) is
-# flagged regardless of what HCL block it's inside -- the dynatrace
-# provider in dt-pilot reads every credential from env vars, so a
-# committed inline value is always a smell.
-$tfArgRegex = '^\s*(url|api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
+# `api_token = "..."`, `client_id = "..."`, `client_secret = "..."`,
+# or `account_id = "..."` whose right-hand side is a string literal
+# (not a var./local./data. reference) is flagged regardless of what
+# HCL block it's inside -- the dynatrace provider in dt-pilot reads
+# every credential from env vars, so a committed inline value of those
+# specifically-credential names is always a smell.
+#
+# `url` is deliberately NOT in this regex -- it's a common, legitimate
+# argument name in non-provider blocks (webhook endpoints, HTTP data
+# sources, dashboard tiles, notification configs), and flagging every
+# inline `url = "..."` produced too many false positives. The actual
+# leak case we care about -- a live Dynatrace tenant URL hardcoded
+# anywhere in the file -- is already caught by $tenantUrlRegex above,
+# which matches *.live.dynatrace.com / *.apps.dynatrace.com /
+# *.dynatracelabs.com regardless of whether it's the LHS of a `url =`
+# assignment, embedded in a template string, or appearing as a comment.
+$tfArgRegex = '^\s*(api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
 foreach ($file in $tfTargets) {
     # Force an array: Get-Content returns a scalar string for
     # single-line files, which would make $lines[$i] index characters
