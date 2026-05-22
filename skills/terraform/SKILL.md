@@ -61,7 +61,7 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope (same fields, different `schema
   "schema": "dt-pilot.tfplan/v1",
   "createdAtUtc": "2026-05-21T17:00:00Z",
   "environment": "dev",
-  "workingDir": "examples/terraform-baseline",
+  "workingDir": "/abs/path/to/examples/terraform-baseline",
   "workspaceHash": "<sha256 over .tf + .tfvars + .terraform.lock.hcl>",
   "terraformVersion": "1.10.0",
   "terraformExe": "/usr/local/bin/terraform",
@@ -83,7 +83,10 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope (same fields, different `schema
 3. **Workspace-content hash match.** SHA-256 over every `*.tf`, `*.tfvars`, and `terraform.lock.hcl` in the working directory matches the artifact's `workspaceHash`. Any edit invalidates the apply.
 4. **Freshness.** Artifact is no older than `-MaxAgeMinutes` (default 30).
 
-PLUS the Terraform-specific check: the binary plan file at `planBinary` (path is relative to the working directory) must still exist on disk. Without it, `terraform apply tfplan` has nothing to apply.
+PLUS two Terraform-specific checks:
+
+- **WorkingDir match.** The envelope's `workingDir` (recorded as the absolute path the plan was produced for) must equal the resolved `-Path`. The comparison normalizes separators and is case-insensitive on Windows. A missing or differing `workingDir` is a hard failure — the workspace-hash gate would catch most cross-workspace cases, but an explicit path check produces a clearer error and protects against the rare same-content / different-path scenario.
+- **Binary plan present.** The binary plan file at `planBinary` (path is relative to the working directory) must still exist on disk. Without it, `terraform apply tfplan` has nothing to apply.
 
 ---
 
@@ -124,7 +127,12 @@ provider "dynatrace" {
 }
 ```
 
-A committed inline-literal credential — `provider "dynatrace" { url = "https://abc123.live.dynatrace.com" }` or `api_token = "dt0c01.XXXX..."` — is a deployment-blocker; the `Test-McpConfigSecrets.ps1` scanner flags any `url` / `api_token` / `client_id` / `client_secret` / `account_id` whose RHS is a string literal and the pre-commit gate fails. Interpolated references (`url = "https://${var.tenant}"`, `api_token = var.api_token`, `client_secret = local.secret`) are *not* flagged — they resolve to env-fed values at runtime, which is the convention this guide tells you to follow.
+A committed inline-literal credential is a deployment-blocker — the `Test-McpConfigSecrets.ps1` pre-commit gate enforces two complementary rules:
+
+1. **Inline credential argument.** Any `api_token` / `client_id` / `client_secret` / `account_id` whose RHS is a string literal (not a `var.` / `local.` / `data.` / `module.` reference) is flagged. So `api_token = "dt0c01.XXXX..."` fails, `api_token = var.api_token` passes. `url` is deliberately *not* on this list — it's a common, legitimate argument name in non-provider blocks (webhook endpoints, HTTP data sources, dashboard tiles, notification configs) and flagging every inline `url = "..."` produced too many false positives.
+2. **Live Dynatrace tenant URL.** Any hardcoded `*.live.dynatrace.com` / `*.apps.dynatrace.com` / `*.dynatracelabs.com` URL is flagged wherever it appears — as the RHS of a `url =` assignment, embedded in a template string, or in a comment. This is the rule that catches a committed tenant URL even though `url` itself is off the inline-arg list.
+
+Bearer-in-URL (`https://user:token@...`) and Dynatrace token literals (`dt0XX.<...>`) are also flagged everywhere. `.tfvars.json` files are JSON-parsed for the same credential field names since the HCL `=` regex doesn't match JSON syntax.
 
 ### 4.3 Variables are typed and documented
 

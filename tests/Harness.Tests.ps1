@@ -1079,6 +1079,26 @@ Describe 'Terraform backend (Design 003)' {
                 Remove-Item -LiteralPath $root -Recurse -Force
             }
         }
+
+        It 'changes when .terraform.lock.hcl changes (provider version drift)' {
+            # Pass-7 fix: the lockfile pattern was 'terraform.lock.hcl'
+            # (no leading dot) so it never matched the real Terraform
+            # file name '.terraform.lock.hcl' and a provider version pin
+            # change between plan and apply slipped past the gate. This
+            # test asserts the lockfile is now part of the hash.
+            $root = New-TempTfWorkspace -Files @{
+                'main.tf'              = 'resource "null_resource" "x" {}'
+                '.terraform.lock.hcl'  = 'provider "registry.terraform.io/dynatrace-oss/dynatrace" { version = "1.78.0" }'
+            }
+            try {
+                $before = Get-TerraformWorkspaceHash -WorkingDir $root
+                Set-Content -LiteralPath (Join-Path $root '.terraform.lock.hcl') -Value 'provider "registry.terraform.io/dynatrace-oss/dynatrace" { version = "1.79.0" }' -Encoding utf8
+                $after  = Get-TerraformWorkspaceHash -WorkingDir $root
+                $before | Should -Not -Be $after
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
     }
 
     Context '_Common.Read-TfPlanMetadata' {
@@ -1383,6 +1403,35 @@ api_token = "dt0c01.ABCDEFGHIJKLMNOPQRSTUVWX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
 dt_env_url = "https://abc12345.live.dynatrace.com"
 '@
         Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars') -Value $bad -Encoding utf8
+
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 1
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
+    It "flags an inline credential field in a .tfvars.json file (JSON syntax, not HCL)" {
+        # Pass-7 fix: the HCL inline-arg regex matches `key = "value"`
+        # so JSON tfvars (`"key": "value"`) bypassed it. The scanner
+        # now parses .tfvars.json files separately and checks the same
+        # credential field names.
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfvars-json-bad-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $bad = @'
+{
+  "client_secret": "abc-definitely-a-real-secret-not-a-placeholder",
+  "owner": "platform@example.test"
+}
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars.json') -Value $bad -Encoding utf8
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'

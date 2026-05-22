@@ -113,9 +113,24 @@ if ($planResult.ExitCode -eq 0) {
         $maxBytes = 64KB
         $raw = $show.StdOut
         if ([System.Text.Encoding]::UTF8.GetByteCount($raw) -gt $maxBytes) {
-            # Truncate at character count proxying byte cap (UTF-8 1-byte
-            # for ASCII; sufficient approximation for terraform's JSON).
-            $showJson = $raw.Substring(0, [Math]::Min($raw.Length, $maxBytes)) + "`n/* truncated -- full terraform show -json output exceeded 64 KiB; envelope summary counts came from the full payload */"
+            # Truncate by BYTES, not characters. The previous version
+            # used $raw.Substring(0, $maxBytes), but a single .NET char
+            # can encode to up to 4 UTF-8 bytes; for terraform's JSON
+            # that's mostly ASCII so the difference was small but real.
+            # Encode the full string, slice the byte array at $maxBytes,
+            # then walk BACK past any UTF-8 continuation bytes (high two
+            # bits == 10) so we don't end on a partial multi-byte sequence,
+            # and decode the safe prefix. Bit pattern reference: leading
+            # bytes are 0xxxxxxx (ASCII) / 110xxxxx (2-byte) / 1110xxxx
+            # (3-byte) / 11110xxx (4-byte); continuation bytes are
+            # 10xxxxxx (high two bits == 10, i.e. (b & 0xC0) == 0x80).
+            $bytes  = [System.Text.Encoding]::UTF8.GetBytes($raw)
+            $cutoff = $maxBytes
+            while ($cutoff -gt 0 -and (($bytes[$cutoff] -band 0xC0) -eq 0x80)) {
+                $cutoff--
+            }
+            $safePrefix = [System.Text.Encoding]::UTF8.GetString($bytes, 0, $cutoff)
+            $showJson = $safePrefix + "`n/* truncated -- full terraform show -json output exceeded 64 KiB; envelope summary counts came from the full payload */"
         } else {
             $showJson = $raw
         }

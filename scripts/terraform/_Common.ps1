@@ -122,13 +122,18 @@ function Get-TerraformWorkspaceHash {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string] $WorkingDir)
     # Stable SHA-256 over every Terraform source file the apply step
-    # would read: *.tf, *.tfvars, terraform.lock.hcl. Sorted by
+    # would read: *.tf, *.tfvars, .terraform.lock.hcl. Sorted by
     # workspace-relative path so the hash is reproducible across clones.
     # State files (terraform.tfstate*) are deliberately excluded -- state
     # is server-side / runtime, not source; including it would invalidate
     # every plan as soon as state evolves.
+    #
+    # The lockfile pattern is .terraform.lock.hcl (with leading dot, the
+    # name Terraform actually writes). An earlier version of this list
+    # had 'terraform.lock.hcl' (no leading dot) which never matched, so
+    # provider-version drift between plan and apply wasn't being caught.
     $files = New-Object System.Collections.Generic.List[string]
-    $patterns = @('*.tf','*.tfvars','*.tfvars.json','terraform.lock.hcl')
+    $patterns = @('*.tf','*.tfvars','*.tfvars.json','.terraform.lock.hcl')
     foreach ($pat in $patterns) {
         $matches = Get-ChildItem -LiteralPath $WorkingDir -Filter $pat -Recurse -File -ErrorAction SilentlyContinue
         foreach ($f in $matches) { $files.Add($f.FullName) }
@@ -217,7 +222,15 @@ function Write-TfPlanMetadata {
     if ($dir -and -not (Test-Path -LiteralPath $dir)) {
         $null = New-Item -ItemType Directory -Path ([System.IO.Path]::GetFullPath($dir)) -Force
     }
-    $meta | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $OutPath -Encoding utf8
+    # Write UTF-8 WITHOUT a BOM. `Set-Content -Encoding utf8` is not
+    # byte-deterministic across editions: Windows PowerShell 5.1 writes
+    # a BOM, PowerShell 7+ does not. The rest of the repo uses
+    # [System.IO.File]::WriteAllText with UTF8Encoding($false) for the
+    # same reason (Sync-TerraformCatalog.ps1, Sync-MonacoCatalog.ps1) --
+    # match it here so envelope artifacts are byte-identical regardless
+    # of which shell produced them.
+    $json = $meta | ConvertTo-Json -Depth 8
+    [System.IO.File]::WriteAllText($OutPath, $json, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Read-TfPlanMetadata {

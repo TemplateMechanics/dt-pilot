@@ -221,7 +221,8 @@ foreach ($file in $mcpTargets) {
 # which matches *.live.dynatrace.com / *.apps.dynatrace.com /
 # *.dynatracelabs.com regardless of whether it's the LHS of a `url =`
 # assignment, embedded in a template string, or appearing as a comment.
-$tfArgRegex = '^\s*(api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
+$tfArgRegex      = '^\s*(api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
+$credentialNames = @('api_token','client_id','client_secret','account_id')
 foreach ($file in $tfTargets) {
     # Force an array: Get-Content returns a scalar string for
     # single-line files, which would make $lines[$i] index characters
@@ -244,6 +245,28 @@ foreach ($file in $tfTargets) {
             # start with an interpolation.)
             if ($argVal -notmatch '\$\{(var|local|data|module)\.') {
                 $findings.Add(("{0}  ({1}): provider argument '{2}' set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $loc, $argName))
+            }
+        }
+    }
+
+    # .tfvars.json files use JSON syntax (`"api_token": "..."`), so the
+    # HCL-shaped $tfArgRegex above never matches them. Parse JSON
+    # variants separately and check the same credential field names.
+    # Any non-empty string value for one of those keys is treated as an
+    # inline literal (JSON has no interpolation analogue -- you can't
+    # write ${var.x} in a JSON value).
+    if ($file -match '\.tfvars\.json$') {
+        try {
+            $json = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+        } catch {
+            $findings.Add(("{0}: not valid JSON -- refusing to scan ({1})" -f $file, $_.Exception.Message))
+            continue
+        }
+        if ($json -and $json.PSObject -and $json.PSObject.Properties) {
+            foreach ($prop in $json.PSObject.Properties) {
+                if ($credentialNames -contains $prop.Name -and $prop.Value -is [string] -and $prop.Value.Length -gt 0) {
+                    $findings.Add(("{0}  (json key '{1}'): credential field set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $prop.Name, $prop.Value))
+                }
             }
         }
     }
