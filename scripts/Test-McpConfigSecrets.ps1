@@ -194,7 +194,16 @@ function Test-StringForSecrets {
     }
     if ($Value -match $tenantUrlRegex) {
         $remediation = if ($Kind -eq 'terraform') {
-            "use a var./local. reference fed from the DT_ENVIRONMENT env var via the wrapper instead"
+            # Be precise about WHAT the wrappers actually do: they
+            # translate DT_ENVIRONMENT -> DT_ENV_URL for the child
+            # terraform process, so the dynatrace provider picks the
+            # URL up directly from its environment. They do NOT populate
+            # arbitrary Terraform variables. For non-provider URLs (a
+            # webhook endpoint, a data-source target) where a TF variable
+            # genuinely needs to vary, the operator wires it via tfvars
+            # or TF_VAR_<name>. Either way, the literal tenant URL must
+            # come out of the .tf file.
+            "remove the hardcoded tenant URL -- the wrappers translate DT_ENVIRONMENT -> DT_ENV_URL for the provider directly, and any non-provider URL that needs to vary should be a tfvars / TF_VAR_<name>-fed variable"
         } else {
             "use type:environment + env-var reference instead"
         }
@@ -299,13 +308,20 @@ foreach ($file in $tfTargets) {
         if ($line -match $tfArgRegex) {
             $argName = $Matches[1]
             $argVal  = $Matches[2]
-            # Allow any string that CONTAINS a ${var.x}, ${local.x},
-            # ${data.x.y}, or ${module.x.y} interpolation -- those
-            # resolve to runtime values, not committed secrets.
-            # (The previous `^\$\{...` anchor would false-positive on
-            # 'https://${var.tenant}/path' which contains but doesn't
-            # start with an interpolation.)
-            if ($argVal -notmatch '\$\{(var|local|data|module)\.') {
+            # Exempt ONLY if the entire RHS is a single ${var|local|data|module}.X
+            # interpolation with no extra literal characters. A previous
+            # version accepted any value that CONTAINED an interpolation
+            # anywhere, which created a bypass: `client_secret = "real-secret${var.x}"`
+            # would have slipped past every other rule (not token-shaped,
+            # not a tenant URL, not a bearer URL). Credentials are bare
+            # opaque values -- they're never meant to be assembled by
+            # mixing a literal with an interpolated reference -- so this
+            # tighter exemption doesn't break any legitimate pattern.
+            # The `url` exemption that motivated the earlier loose rule
+            # no longer applies (`url` was removed from $tfArgRegex in
+            # pass 6 because of false positives in non-provider blocks).
+            $isPureInterp = $argVal -match '^\$\{(var|local|data|module)\.[A-Za-z0-9_.\[\]]+\}$'
+            if (-not $isPureInterp) {
                 # "credential field" rather than "provider argument" --
                 # the same regex fires on .tf (a provider arg) and
                 # .tfvars (a variable assignment); generic wording stays

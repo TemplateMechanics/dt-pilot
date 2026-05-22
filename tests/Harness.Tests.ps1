@@ -1489,6 +1489,49 @@ provider "dynatrace" {
         }
     }
 
+    It "flags a credential RHS that MIXES a literal with an interpolation" {
+        # Pass-28 fix: the previous exemption rule passed any value
+        # CONTAINING an interpolation. Used as a bypass:
+        # `client_secret = "real-secret${var.x}"` slipped every check
+        # (not token-shaped, not a tenant URL, not bearer-in-URL). The
+        # tightened rule exempts only a value that is EXACTLY a single
+        # interpolation; mixing literal + interpolation now flags.
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfmix-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $bad = @"
+provider "dynatrace" {
+  client_secret = "pasted-real-secret-suffix-`${var.harmless}"
+}
+"@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
+
+        try {
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 1
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
+    It "STILL accepts a credential RHS that is EXACTLY a single interpolation" {
+        # The flip side: the tightened rule must not regress the
+        # legitimate `api_token = "${var.api_token}"` pattern that the
+        # docs tell operators to use.
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfpure-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $good = @"
+provider "dynatrace" {
+  api_token = "`${var.api_token}"
+}
+"@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $good -Encoding utf8
+
+        try {
+            Invoke-IsolatedScanner -TmpRepoRoot $tmpDir | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
     It "flags an api_token assigned via an HCL heredoc (multi-line bypass)" {
         # Pass-17 fix: the single-line $tfArgRegex misses heredoc-form
         # assignments. A client_secret / account_id literal that isn't
