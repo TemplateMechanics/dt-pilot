@@ -142,18 +142,28 @@ function New-ScaffoldFiles {
 
     # variables.tf.example. Catalog descriptions are author-written
     # free text; before injecting one into an HCL double-quoted string
-    # we MUST escape the three characters HCL treats specially:
+    # we MUST escape every character HCL treats specially:
     #   \ -> \\   (must come first so the rest aren't doubled)
     #   " -> \"
+    #   ${ -> $${    (HCL template interpolation; we want a literal)
+    #   %{ -> %%{    (HCL template directive; we want a literal)
     # plus collapse any embedded newlines to "\n" sequences so a multi-
     # line description doesn't break out of the string and produce
-    # syntactically invalid HCL. None of the current catalog entries hit
-    # this case, but it's a foot-gun waiting for the first description
-    # that needs a literal quote.
+    # syntactically invalid HCL. The slo_v2 management_zone_id catalog
+    # entry currently includes "${var.management_zone_id}" in its
+    # description (as an example of how the variable is used in the
+    # filter expression); without the $${ escape, HCL would attempt to
+    # interpolate it inside the variable block, which is both invalid
+    # at that location and not what we want anyway -- the description
+    # should be the literal characters the author wrote.
     function Format-HclString {
         param([string] $S)
         if ($null -eq $S) { return '' }
         $escaped = $S.Replace('\','\\').Replace('"','\"')
+        # HCL template escapes: literal '${' becomes '$${' and literal
+        # '%{' becomes '%%{'. Order doesn't matter relative to \ / "
+        # because none of those sequences overlap.
+        $escaped = $escaped.Replace('${','$${').Replace('%{','%%{')
         # Normalize CRLF -> LF first so we don't emit \r\n.
         $escaped = $escaped.Replace("`r`n","`n").Replace("`r","`n").Replace("`n",'\n')
         return $escaped

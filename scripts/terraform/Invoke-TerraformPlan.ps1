@@ -175,9 +175,16 @@ $envelopePath = if ([System.IO.Path]::IsPathRooted($EnvelopeOut)) { $EnvelopeOut
 # workspace" -- which only holds if the binary plan IS inside the
 # workspace.
 if ([System.IO.Path]::IsPathRooted($Out)) {
+    # Match the apply-side path comparison: case-insensitive on Windows
+    # (filesystem is), case-sensitive on Linux/macOS (filesystem is). The
+    # previous unconditional OrdinalIgnoreCase could let a case-only
+    # difference slip past here and then fail at apply time with a
+    # confusing message.
+    $isWin = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) { $IsWindows } else { [System.Environment]::OSVersion.Platform -eq 'Win32NT' }
+    $pathCmp = if ($isWin) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
     $rootedFull = [System.IO.Path]::GetFullPath($Out)
     $workFull   = [System.IO.Path]::GetFullPath($workDir).TrimEnd('\','/') + [System.IO.Path]::DirectorySeparatorChar
-    if (-not $rootedFull.StartsWith($workFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $rootedFull.StartsWith($workFull, $pathCmp)) {
         throw "-Out '$Out' resolves to a path outside the working directory '$workDir'. The binary plan must live inside the workspace it was produced for; pass a workdir-relative -Out (e.g. 'tfplan' or 'plans/dev.tfplan') or omit -Out to use the default."
     }
     $planBinRelative = [System.IO.Path]::GetRelativePath($workDir, $Out).Replace('\','/')
