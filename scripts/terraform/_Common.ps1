@@ -132,18 +132,41 @@ function Get-TerraformWorkspaceHash {
     # name Terraform actually writes). An earlier version of this list
     # had 'terraform.lock.hcl' (no leading dot) which never matched, so
     # provider-version drift between plan and apply wasn't being caught.
-    # -Force is required for .terraform.lock.hcl: on Linux/macOS the
-    # leading-dot makes .NET stamp the file with Hidden, and Get-ChildItem
-    # without -Force then silently skips it -- so lockfile drift would
-    # never invalidate the hash on those runners.
+    # Directory-pruning walker. Get-ChildItem -Recurse over patterns
+    # like *.tf would still descend into .terraform/modules/** (which
+    # in an initialized workspace contains many .tf files from provider
+    # / module caches) and into .git/ before the post-hoc filter
+    # discarded them -- a real cost on workspaces that have been
+    # `terraform init`ed. Walk the tree ourselves and skip those dirs
+    # at the directory level so they're never enumerated.
+    #
+    # Files matched: anything ending in .tf / .tfvars / .tfvars.json,
+    # plus the lockfile literally named '.terraform.lock.hcl' (note
+    # the leading dot -- the actual Terraform filename). State files
+    # (terraform.tfstate*) are deliberately excluded as before.
+    $excludeDirs = @('.git', '.terraform', 'node_modules', 'downloaded')
     $files = New-Object System.Collections.Generic.List[string]
-    $patterns = @('*.tf','*.tfvars','*.tfvars.json','.terraform.lock.hcl')
-    foreach ($pat in $patterns) {
-        $matches = Get-ChildItem -LiteralPath $WorkingDir -Filter $pat -Recurse -File -Force -ErrorAction SilentlyContinue
-        foreach ($f in $matches) { $files.Add($f.FullName) }
+    $stack = New-Object System.Collections.Generic.Stack[string]
+    $stack.Push($WorkingDir)
+    while ($stack.Count -gt 0) {
+        $dir = $stack.Pop()
+        try {
+            $entries = [System.IO.Directory]::EnumerateFileSystemEntries($dir)
+        } catch {
+            continue
+        }
+        foreach ($entry in $entries) {
+            $name = [System.IO.Path]::GetFileName($entry)
+            if ([System.IO.Directory]::Exists($entry)) {
+                if ($excludeDirs -notcontains $name) { $stack.Push($entry) }
+            } else {
+                if ($name -eq '.terraform.lock.hcl' -or
+                    ($name -match '\.(tf|tfvars|tfvars\.json)$' -and $name -notmatch '\.tfstate(\.|$)')) {
+                    $files.Add($entry)
+                }
+            }
+        }
     }
-    # Skip anything inside .terraform/ -- it's provider-cache, not source.
-    $files = @($files | Where-Object { $_ -notmatch '[\\/]\.terraform[\\/]' })
     if ($files.Count -eq 0) {
         # Should not happen because Resolve-TerraformWorkingDir already
         # checked for *.tf; defensive guard for direct callers.

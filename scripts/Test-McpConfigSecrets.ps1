@@ -256,11 +256,20 @@ foreach ($file in $mcpTargets) {
 $tfArgRegex      = '^\s*(api_token|client_id|client_secret|account_id)\s*=\s*"([^"]+)"'
 $credentialNames = @('api_token','client_id','client_secret','account_id')
 foreach ($file in $tfTargets) {
-    # Force an array: Get-Content returns a scalar string for
-    # single-line files, which would make $lines[$i] index characters
-    # rather than lines (and miss secrets in any .tf file that's a
-    # single line).
-    $lines = @(Get-Content -LiteralPath $file)
+    # Read once with -Raw, derive the per-line array from the raw
+    # content. The previous version called Get-Content twice (once
+    # default-mode for $lines, once -Raw for heredoc detection) which
+    # doubled disk I/O on every Terraform file in the workspace.
+    $fullContent = Get-Content -LiteralPath $file -Raw
+    if ($null -eq $fullContent) { $fullContent = '' }
+    # Split on either CRLF or LF and trim a trailing empty entry that
+    # appears when the file ends with a newline. This preserves the
+    # single-line-file safety the @(Get-Content ...) array coercion
+    # gave us: even a one-line file becomes a 1-element array.
+    $lines = $fullContent -split "`r?`n"
+    if ($lines.Length -gt 0 -and $lines[-1] -eq '') {
+        $lines = $lines[0..($lines.Length - 2)]
+    }
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
         $loc  = "line $($i + 1)"
@@ -300,7 +309,6 @@ foreach ($file in $tfTargets) {
     # convention is that credentials never appear inline in any form.
     # Match on the full file content with the multiline flag so the
     # marker (the same identifier after <<) can find its closing line.
-    $fullContent = (Get-Content -LiteralPath $file -Raw)
     if ($fullContent) {
         $heredocPattern = '(?m)^\s*(api_token|client_id|client_secret|account_id)\s*=\s*<<-?\s*(["'']?)(\w+)\2'
         foreach ($m in [regex]::Matches($fullContent, $heredocPattern)) {
