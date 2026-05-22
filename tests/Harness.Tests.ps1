@@ -896,7 +896,18 @@ Describe 'Terraform backend (Design 003)' {
         . (Join-Path $script:TerraformDir '_Common.ps1')
 
         function New-TempTfWorkspace {
-            param([hashtable] $Files)
+            param(
+                [hashtable] $Files,
+                # Pass-27 fix: Get-TerraformWorkspaceHash now refuses to
+                # hash a workspace without .terraform.lock.hcl (to enforce
+                # provider-version drift protection in production). The
+                # tests don't run `terraform init`, so by default the
+                # helper drops a stub lockfile so the hash machinery
+                # under test still functions. Tests that want to
+                # explicitly exercise the missing-lockfile failure path
+                # pass -SkipLockfile.
+                [switch] $SkipLockfile
+            )
             $root = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tf-" + [System.Guid]::NewGuid().ToString('N'))
             $null = New-Item -ItemType Directory -Path $root -Force
             if ($Files) {
@@ -906,6 +917,12 @@ Describe 'Terraform backend (Design 003)' {
                     if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
                     Set-Content -LiteralPath $full -Value $Files[$rel] -Encoding utf8
                 }
+            }
+            if (-not $SkipLockfile -and -not (Test-Path -LiteralPath (Join-Path $root '.terraform.lock.hcl'))) {
+                # Plausible-shaped stub. The hash function only cares
+                # that the file exists; tests for actual lockfile
+                # behaviour override with their own content.
+                Set-Content -LiteralPath (Join-Path $root '.terraform.lock.hcl') -Value 'provider "registry.terraform.io/dynatrace-oss/dynatrace" { version = "1.78.0" }' -Encoding utf8
             }
             return $root
         }
@@ -1087,6 +1104,20 @@ Describe 'Terraform backend (Design 003)' {
                 Set-Content -LiteralPath (Join-Path $root '.terraform/providers/registry/example.tf') -Value 'cached provider data CHANGED' -Encoding utf8
                 $hash2 = Get-TerraformWorkspaceHash -WorkingDir $root
                 $hash | Should -Be $hash2
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'refuses to hash a workspace without .terraform.lock.hcl' {
+            # Pass-27 fix: missing lockfile must be a hard failure (not
+            # silently hash anyway), otherwise the apply-time provider-
+            # version-drift gate is bypassable just by deleting the
+            # lockfile before plan.
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' } -SkipLockfile
+            try {
+                { Get-TerraformWorkspaceHash -WorkingDir $root } |
+                    Should -Throw -ExpectedMessage '*has no .terraform.lock.hcl*'
             } finally {
                 Remove-Item -LiteralPath $root -Recurse -Force
             }

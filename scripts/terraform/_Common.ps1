@@ -173,6 +173,25 @@ function Get-TerraformWorkspaceHash {
         # checked for *.tf; defensive guard for direct callers.
         return ''
     }
+    # Require .terraform.lock.hcl to exist. The hash and the apply-time
+    # gate would otherwise silently "work" on a workspace where the
+    # lockfile is missing -- and a missing lockfile means terraform is
+    # free to pick a different provider patch version on the apply
+    # machine than the one the plan was produced against, defeating
+    # the cross-machine provider-version-drift protection that the
+    # lockfile is supposed to give us. Force the operator to commit
+    # the lockfile (or rerun `terraform init` to generate it) before
+    # plan / apply can proceed.
+    $hasLockfile = $false
+    foreach ($f in $files) {
+        if ([System.IO.Path]::GetFileName($f) -eq '.terraform.lock.hcl') {
+            $hasLockfile = $true
+            break
+        }
+    }
+    if (-not $hasLockfile) {
+        throw "Workspace '$WorkingDir' has no .terraform.lock.hcl. The workspace hash and the apply-time provider-version-drift gate both depend on the lockfile being present. Run Initialize-TerraformWorkspace.ps1 (or `terraform init`) to generate it, then commit it before re-running plan / apply."
+    }
     $sb = New-Object System.Text.StringBuilder
     $root = (Resolve-Path -LiteralPath $WorkingDir).ProviderPath
     foreach ($f in ($files | Sort-Object)) {
