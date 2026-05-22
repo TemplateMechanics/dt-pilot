@@ -1274,6 +1274,25 @@ Describe 'Terraform backend (Design 003)' {
             }
         }
 
+        It "rejects an envelope missing the 'summary' field" {
+            # Pass-22 fix: previously, missing 'summary' would surface as
+            # a generic PropertyNotFoundException at the operator-log
+            # print site. Now it's a centralized targeted error.
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev'
+                $obj = Get-Content -LiteralPath $art.Envelope -Raw | ConvertFrom-Json
+                $obj.PSObject.Properties.Remove('summary')
+                $obj | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $art.Envelope -Encoding utf8
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage "*'summary' field*"
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
         It "rejects an envelope missing the 'createdAtUtc' field" {
             $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
             try {

@@ -319,5 +319,18 @@ function Read-TfPlanMetadata {
     if ($null -eq $obj.createdAtUtc -or ($obj.createdAtUtc -is [string] -and [string]::IsNullOrWhiteSpace($obj.createdAtUtc))) {
         throw "Plan envelope's 'createdAtUtc' is empty; refusing to apply from a malformed envelope: $PlanFile"
     }
+    # 'summary' is an object with wouldAdd/wouldChange/wouldDestroy
+    # counts, printed in the operator log before apply. Validate the
+    # nested fields the wrapper actually reads so a hand-edited envelope
+    # missing them surfaces as "missing 'summary.wouldX'" rather than
+    # PropertyNotFoundException under StrictMode.
+    if (-not $obj.PSObject.Properties['summary']) {
+        throw "Plan envelope is missing the 'summary' field; refusing to apply from a malformed envelope: $PlanFile"
+    }
+    foreach ($field in @('wouldAdd','wouldChange','wouldDestroy')) {
+        if (-not $obj.summary.PSObject.Properties[$field]) {
+            throw "Plan envelope's 'summary' is missing the '$field' field; refusing to apply from a malformed envelope: $PlanFile"
+        }
+    }
     return $obj
 }
