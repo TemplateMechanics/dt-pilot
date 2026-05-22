@@ -4,11 +4,24 @@ dt-pilot reads credentials exclusively from environment variables. No tokens, OA
 
 ## Auth modes
 
-| Mode | Used by | Required env vars |
+| Mode | Used by | Canonical env vars (you set) |
 |---|---|---|
-| **Platform token** | Monaco deploys (settings 2.0), Dynatrace MCP server | `DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN` |
-| **OAuth client credentials** | Monaco deploys + account-management ops, Dynatrace MCP server | `DT_ENVIRONMENT`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` |
-| **Classic API token** | Classic config-API Monaco deploys (`auto-tag` and similar legacy APIs) | `DT_ENVIRONMENT`, plus a per-environment classic token env var named in `manifest.yaml` |
+| **Platform token** | Monaco deploys (settings 2.0), Terraform `dynatrace_*_v2` resources, Dynatrace MCP server | `DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN` |
+| **OAuth client credentials** | Monaco deploys + account-management ops, Terraform, Dynatrace MCP server | `DT_ENVIRONMENT`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` |
+| **Classic API token** | Classic config-API Monaco deploys (`auto-tag` and similar legacy APIs), Terraform classic resources | `DT_ENVIRONMENT`, plus a per-environment classic token env var named in `manifest.yaml` |
+
+You set the canonical names once. The backend-specific wrappers translate to the names each underlying tool expects:
+
+| Canonical (you set) | Monaco reads | Terraform provider reads (translation by `Get-TerraformProviderEnv` in `scripts/terraform/_Common.ps1`) |
+|---|---|---|
+| `DT_ENVIRONMENT` | `DT_ENVIRONMENT` | `DT_ENV_URL` |
+| `DT_PLATFORM_TOKEN` | `DT_PLATFORM_TOKEN` | `DT_API_TOKEN` |
+| `OAUTH_CLIENT_ID` | `OAUTH_CLIENT_ID` | `DT_CLIENT_ID` |
+| `OAUTH_CLIENT_SECRET` | `OAUTH_CLIENT_SECRET` | `DT_CLIENT_SECRET` |
+
+The translation is process-local: `Invoke-TerraformCommand` sets the provider-specific names on the child `terraform` process's environment block ONLY. Your interactive shell's `$env:` is never mutated.
+
+You never need to set the provider-specific names yourself. If you're running `terraform` directly outside the wrappers (rare; not the supported path), set the provider-specific names instead.
 
 The upstream Dynatrace MCP server *also* supports browser SSO (with `DT_ENVIRONMENT` set and no other credentials), but **dt-pilot intentionally disables that path**: `Start-DynatraceMcpServer.ps1` and `Test-DynatraceMcpReadiness.ps1` both refuse to start without either a platform token or OAuth credentials. The harness is designed for unattended / scripted use; an interactive SSO flow would block the MCP transport while the browser is open and is the wrong default for an agent-driven workflow.
 

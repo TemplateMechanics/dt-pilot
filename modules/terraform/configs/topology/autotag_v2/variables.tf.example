@@ -1,0 +1,12 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+
+variable "tag_name" {
+  type        = string
+  description = "Tag key (the right-hand side will come from the rule expression)."
+}
+
+variable "rule_expression" {
+  type        = string
+  description = "DQL-like or attribute predicate that selects the entities to tag. Feeds a nested rules { } block -- no top-level provider argument."
+}

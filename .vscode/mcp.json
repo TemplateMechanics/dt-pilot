@@ -26,6 +26,18 @@
         "CONTEXT7_API_KEY": "${input:context7_api_key}"
       },
       "disabled": true
+    },
+    "terraform": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:0.6.0"
+      ],
+      "disabled": true,
+      "_comment": "Pin to a specific image tag (not :latest) so workspace setup is reproducible and upstream changes land via reviewed PRs. Bump intentionally."
     }
   },
   "inputs": [

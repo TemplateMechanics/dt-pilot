@@ -29,6 +29,16 @@
       "acceptsOneOfEnv": [
         ["CONTEXT7_API_KEY"]
       ]
+    },
+    {
+      "id": "terraform",
+      "displayName": "Terraform MCP Server",
+      "description": "Official HashiCorp Terraform MCP server (registry lookups, provider / module discovery, workspace context). Off by default; enable when actively authoring .tf files. Provides no Dynatrace-specific surface -- the Dynatrace MCP server still handles entity / DQL / problem reads.",
+      "homepage": "https://github.com/hashicorp/terraform-mcp-server",
+      "defaultEnabled": false,
+      "alwaysEnabled": false,
+      "requiresEnv": [],
+      "acceptsOneOfEnv": []
     }
   ]
 }

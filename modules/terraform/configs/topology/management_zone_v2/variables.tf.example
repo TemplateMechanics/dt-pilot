@@ -1,0 +1,7 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+
+variable "zone_name" {
+  type        = string
+  description = "Display name for the management zone."
+}

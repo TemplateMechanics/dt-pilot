@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented (#15) |
 | **Owner** | TBA |
-| **Last updated** | 2026-05-20 |
-| **Implementation PR** | _pending_ |
-| **Depends on** | [Design 001](MULTI-BACKEND-SKELETON.md) |
+| **Last updated** | 2026-05-22 |
+| **Implementation PR** | [#15](https://github.com/TemplateMechanics/dt-pilot/pull/15) |
+| **Depends on** | [Design 001](MULTI-BACKEND-SKELETON.md) (Implemented #10) |
 
 ## Problem
 

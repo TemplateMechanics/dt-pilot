@@ -1,0 +1,12 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+
+variable "profile_name" {
+  type        = string
+  description = "Display name for the alerting profile."
+}
+
+variable "management_zone_id" {
+  type        = string
+  description = "ID of the management zone this profile is scoped to (use a resource attribute reference, not a literal MZ-id)."
+}

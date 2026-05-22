@@ -1,0 +1,10 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Alerting Profile (dynatrace_alerting).
+# Copy this file to your project's main.tf (or merge in) and fill the TODO markers.
+
+resource "dynatrace_alerting" "TODO_local_name" {
+  name = var.profile_name
+  management_zone = var.management_zone_id
+  # TODO: add the resource-specific blocks from the provider docs.
+}

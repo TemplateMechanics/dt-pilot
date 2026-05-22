@@ -1,0 +1,12 @@
+# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1
+# SPDX-License-Identifier: MIT
+# Scaffold for Service Level Objective (v2) (dynatrace_slo_v2).
+# Copy this file to your project's main.tf (or merge in) and fill the TODO markers.
+
+resource "dynatrace_slo_v2" "TODO_local_name" {
+  name = var.slo_name
+  target = var.target_pct
+  warning = var.warning_pct
+  management_zone_id = var.management_zone_id  # TODO: this variable feeds a nested block or has no top-level provider arg -- move into the right block before applying
+  # TODO: add the resource-specific blocks from the provider docs.
+}
