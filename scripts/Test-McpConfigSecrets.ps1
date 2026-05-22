@@ -276,7 +276,11 @@ foreach ($file in $tfTargets) {
             # 'https://${var.tenant}/path' which contains but doesn't
             # start with an interpolation.)
             if ($argVal -notmatch '\$\{(var|local|data|module)\.') {
-                $findings.Add(("{0}  ({1}): provider argument '{2}' set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $loc, $argName))
+                # "credential field" rather than "provider argument" --
+                # the same regex fires on .tf (a provider arg) and
+                # .tfvars (a variable assignment); generic wording stays
+                # accurate regardless of file type.
+                $findings.Add(("{0}  ({1}): credential field '{2}' set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $loc, $argName))
             }
         }
     }
@@ -301,7 +305,11 @@ foreach ($file in $tfTargets) {
         $heredocPattern = '(?m)^\s*(api_token|client_id|client_secret|account_id)\s*=\s*<<-?\s*(["'']?)(\w+)\2'
         foreach ($m in [regex]::Matches($fullContent, $heredocPattern)) {
             $argName = $m.Groups[1].Value
-            $findings.Add(("{0}  (heredoc): provider argument '{1}' set to a heredoc literal -- read it from an env var via the wrapper instead" -f $file, $argName))
+            # Same wording rationale as the single-line case: heredocs
+            # appear in both .tf (provider blocks) and .tfvars (variable
+            # values), so use file-type-agnostic "credential field" so
+            # the diagnostic isn't misleading in tfvars context.
+            $findings.Add(("{0}  (heredoc): credential field '{1}' set to a heredoc literal -- read it from an env var via the wrapper instead" -f $file, $argName))
         }
     }
 
