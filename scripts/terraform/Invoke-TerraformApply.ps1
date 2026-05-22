@@ -79,17 +79,20 @@ if ($meta.workspaceHash -ne $currentHash) {
     throw "Workspace contents have changed since the plan was produced (workspaceHash mismatch). One or more .tf / .tfvars / lockfile entries was edited. Re-run Invoke-TerraformPlan.ps1."
 }
 
-# createdAtUtc validation. Same pattern as the exitCode / workingDir /
-# planBinary guards: under StrictMode, $meta.createdAtUtc would throw
-# PropertyNotFoundException with no actionable diagnostic if the field
-# is missing -- check explicitly first, then validate it's parseable.
-if (-not $meta.PSObject.Properties['createdAtUtc'] -or -not $meta.createdAtUtc) {
-    throw "Plan envelope is missing the 'createdAtUtc' field; refusing to apply from a malformed envelope. Re-run Invoke-TerraformPlan.ps1."
-}
-try {
-    $createdAt = [datetime]::Parse($meta.createdAtUtc).ToUniversalTime()
-} catch {
-    throw "Plan envelope's 'createdAtUtc' value '$($meta.createdAtUtc)' is not a parseable ISO-8601 timestamp ($($_.Exception.Message)); refusing to apply from a malformed envelope."
+# createdAtUtc parseability. Read-TfPlanMetadata already validated
+# presence and non-emptiness centrally; here we just need to coerce
+# to UTC. In PS 7 ConvertFrom-Json deserializes ISO-8601 strings as
+# [DateTime] automatically; PS 5.1 leaves them as [string]. Handle
+# both shapes -- and surface a targeted error if the string form
+# isn't parseable (e.g. hand-edited junk).
+if ($meta.createdAtUtc -is [datetime]) {
+    $createdAt = $meta.createdAtUtc.ToUniversalTime()
+} else {
+    try {
+        $createdAt = [datetime]::Parse([string]$meta.createdAtUtc, [System.Globalization.CultureInfo]::InvariantCulture).ToUniversalTime()
+    } catch {
+        throw "Plan envelope's 'createdAtUtc' value '$($meta.createdAtUtc)' is not a parseable ISO-8601 timestamp ($($_.Exception.Message)); refusing to apply from a malformed envelope."
+    }
 }
 $ageMinExact = ([datetime]::UtcNow - $createdAt).TotalMinutes
 # Reject envelopes whose timestamps sit in the future. Without this,

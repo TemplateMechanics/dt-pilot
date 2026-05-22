@@ -116,18 +116,39 @@ if ($StagedOnly) {
     #   - *.auto.tfvars / *.auto.tfvars.json (Terraform's own auto-loaded
     #     overrides; also .gitignored in this repo; same intent --
     #     developer-local values that should never reach the audit).
-    # Add .git/ to the directory-exclusion list. The recursive walk
-    # would otherwise descend into pack files / hooks / refs and waste
-    # cycles even though Get-ChildItem -Filter strips out the non-tf
-    # entries afterward. Same for node_modules/ in case a contributor
-    # vendors anything alongside the Terraform sources.
-    $tfPatterns = @('*.tf','*.tfvars','*.tfvars.json')
-    $tfTargets = @(foreach ($pat in $tfPatterns) {
-        Get-ChildItem -LiteralPath $repoRoot -Filter $pat -Recurse -File -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch '[\\/](\.git|\.terraform|node_modules|downloaded)[\\/]' } |
-            Where-Object { $_.Name -notmatch '\.(local|auto)\.tfvars(\.json)?$' } |
-            ForEach-Object { $_.FullName }
-    })
+    # Directory-pruning walker. Get-ChildItem -Recurse with a post-hoc
+    # Where-Object filter still descends INTO every excluded directory
+    # (`.git/`, `.terraform/`, `node_modules/`) and only drops them
+    # after enumeration; on a large repo that's a real cost and
+    # repeated three times (once per file pattern). Walk the tree
+    # ourselves and skip excluded dirs at the dir level so they're
+    # never traversed.
+    $excludeDirs = @('.git', '.terraform', 'node_modules', 'downloaded')
+    $tfTargets = New-Object System.Collections.Generic.List[string]
+    $stack = New-Object System.Collections.Generic.Stack[string]
+    $stack.Push($repoRoot)
+    while ($stack.Count -gt 0) {
+        $dir = $stack.Pop()
+        try {
+            $entries = [System.IO.Directory]::EnumerateFileSystemEntries($dir)
+        } catch {
+            continue
+        }
+        foreach ($entry in $entries) {
+            $name = [System.IO.Path]::GetFileName($entry)
+            if ([System.IO.Directory]::Exists($entry)) {
+                if ($excludeDirs -notcontains $name) { $stack.Push($entry) }
+            } else {
+                # Match the same patterns the previous -Filter loop did,
+                # then strip the gitignored per-developer overrides
+                # (envs/*.local.tfvars[.json], *.auto.tfvars[.json]).
+                if ($name -match '\.(tf|tfvars|tfvars\.json)$' -and $name -notmatch '\.(local|auto)\.tfvars(\.json)?$') {
+                    $tfTargets.Add($entry)
+                }
+            }
+        }
+    }
+    $tfTargets = @($tfTargets)
 }
 
 if (-not $mcpTargets) { $mcpTargets = @() }
@@ -257,6 +278,30 @@ foreach ($file in $tfTargets) {
             if ($argVal -notmatch '\$\{(var|local|data|module)\.') {
                 $findings.Add(("{0}  ({1}): provider argument '{2}' set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $loc, $argName))
             }
+        }
+    }
+
+    # HCL heredoc credential assignments. The $tfArgRegex above only
+    # matches single-line `key = "..."`. HCL also allows:
+    #
+    #   api_token = <<EOF
+    #   dt0c01.ABC...
+    #   EOF
+    #
+    # (and `<<-EOF` for indented variants). Without this scan, a
+    # client_secret / account_id literal that isn't token-shaped could
+    # be smuggled into a heredoc and bypass both the token-prefix regex
+    # AND the single-line inline-arg regex. We treat ANY heredoc
+    # assignment to one of the credential field names as a hit -- the
+    # convention is that credentials never appear inline in any form.
+    # Match on the full file content with the multiline flag so the
+    # marker (the same identifier after <<) can find its closing line.
+    $fullContent = (Get-Content -LiteralPath $file -Raw)
+    if ($fullContent) {
+        $heredocPattern = '(?m)^\s*(api_token|client_id|client_secret|account_id)\s*=\s*<<-?\s*(["'']?)(\w+)\2'
+        foreach ($m in [regex]::Matches($fullContent, $heredocPattern)) {
+            $argName = $m.Groups[1].Value
+            $findings.Add(("{0}  (heredoc): provider argument '{1}' set to a heredoc literal -- read it from an env var via the wrapper instead" -f $file, $argName))
         }
     }
 

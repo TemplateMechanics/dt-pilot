@@ -1448,6 +1448,37 @@ provider "dynatrace" {
         }
     }
 
+    It "flags an api_token assigned via an HCL heredoc (multi-line bypass)" {
+        # Pass-17 fix: the single-line $tfArgRegex misses heredoc-form
+        # assignments. A client_secret / account_id literal that isn't
+        # token-shaped could be smuggled in a `<<EOF` block and slip
+        # past both the token-prefix and inline-arg checks.
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfheredoc-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $bad = @"
+provider "dynatrace" {
+  api_token = <<EOF
+some-secret-pasted-into-a-heredoc-to-evade-the-single-line-scanner
+EOF
+}
+"@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'providers.tf') -Value $bad -Encoding utf8
+
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 1
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
     It "does NOT flag a non-provider 'url = ...' literal (webhook / HTTP data source)" {
         # Pass-6 false-positive that motivated dropping 'url' from the
         # inline-arg regex. A webhook URL pointing at a non-Dynatrace

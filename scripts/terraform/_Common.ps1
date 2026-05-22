@@ -273,8 +273,14 @@ function Read-TfPlanMetadata {
     # wrapper doesn't have to keep adding ad-hoc PSObject.Properties
     # guards and StrictMode doesn't surface "PropertyNotFoundException"
     # for malformed envelopes. The wrapper's own checks (path equality,
-    # path-traversal, freshness, hash equality) layer on top of these.
-    foreach ($field in @('environment','workspaceHash','createdAtUtc','workingDir','planBinary')) {
+    # path-traversal, freshness, hash equality, timestamp parseability)
+    # layer on top of these.
+    #
+    # Note on createdAtUtc: in PS 7, ConvertFrom-Json auto-converts
+    # ISO-8601 strings to [DateTime] (PS 5.1 leaves them as [string]).
+    # So createdAtUtc is checked separately -- presence + non-null only;
+    # the apply wrapper does the type-aware parseability check downstream.
+    foreach ($field in @('environment','workspaceHash','workingDir','planBinary')) {
         if (-not $obj.PSObject.Properties[$field]) {
             throw "Plan envelope is missing the '$field' field; refusing to apply from a malformed envelope: $PlanFile"
         }
@@ -282,6 +288,12 @@ function Read-TfPlanMetadata {
         if ($val -isnot [string] -or [string]::IsNullOrWhiteSpace($val)) {
             throw "Plan envelope's '$field' is not a non-empty string (value '$val'); refusing to apply from a malformed envelope: $PlanFile"
         }
+    }
+    if (-not $obj.PSObject.Properties['createdAtUtc']) {
+        throw "Plan envelope is missing the 'createdAtUtc' field; refusing to apply from a malformed envelope: $PlanFile"
+    }
+    if ($null -eq $obj.createdAtUtc -or ($obj.createdAtUtc -is [string] -and [string]::IsNullOrWhiteSpace($obj.createdAtUtc))) {
+        throw "Plan envelope's 'createdAtUtc' is empty; refusing to apply from a malformed envelope: $PlanFile"
     }
     return $obj
 }
