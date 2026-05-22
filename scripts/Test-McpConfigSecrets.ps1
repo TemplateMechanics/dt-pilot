@@ -271,7 +271,13 @@ foreach ($file in $tfTargets) {
         if ($json -and $json.PSObject -and $json.PSObject.Properties) {
             foreach ($prop in $json.PSObject.Properties) {
                 if ($credentialNames -contains $prop.Name -and $prop.Value -is [string] -and $prop.Value.Length -gt 0) {
-                    $findings.Add(("{0}  (json key '{1}'): credential field set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $prop.Name, $prop.Value))
+                    # Don't include the literal value -- it's the secret
+                    # we're trying NOT to leak. The field name + file
+                    # location are enough for the operator to find and
+                    # remove it. (Earlier draft passed three -f arguments
+                    # while the format string only had {0} and {1}, so
+                    # the value was silently dropped; explicit is better.)
+                    $findings.Add(("{0}  (json key '{1}'): credential field set to an inline string literal -- read it from an env var via the wrapper instead" -f $file, $prop.Name))
                 }
             }
         }

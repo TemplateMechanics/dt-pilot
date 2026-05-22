@@ -117,16 +117,34 @@ if ($planResult.ExitCode -eq 0) {
             # used $raw.Substring(0, $maxBytes), but a single .NET char
             # can encode to up to 4 UTF-8 bytes; for terraform's JSON
             # that's mostly ASCII so the difference was small but real.
-            # Encode the full string, slice the byte array at $maxBytes,
-            # then walk BACK past any UTF-8 continuation bytes (high two
-            # bits == 10) so we don't end on a partial multi-byte sequence,
-            # and decode the safe prefix. Bit pattern reference: leading
-            # bytes are 0xxxxxxx (ASCII) / 110xxxxx (2-byte) / 1110xxxx
-            # (3-byte) / 11110xxx (4-byte); continuation bytes are
-            # 10xxxxxx (high two bits == 10, i.e. (b & 0xC0) == 0x80).
+            #
+            # Algorithm: encode the full string, choose an initial cutoff
+            # at $maxBytes (meaning bytes [0..$cutoff-1] are included,
+            # [$cutoff..end] excluded), then walk the cutoff BACKWARD
+            # until $bytes[$cutoff] is at a UTF-8 character boundary
+            # (i.e. NOT a continuation byte) -- because if the FIRST
+            # EXCLUDED byte is a continuation, we'd be cutting between a
+            # multi-byte leader (included) and its continuation (excluded)
+            # and the decoded prefix would have a partial codepoint at
+            # the end. The check is on $bytes[$cutoff] (first excluded
+            # byte), NOT $bytes[$cutoff-1] (last included byte): a
+            # legitimate complete multi-byte char ENDS with a continuation
+            # byte (e.g. "ä" is 0xC3 0xA4 where 0xA4 is a continuation
+            # AND a valid end-of-character), so checking the last included
+            # byte for "is continuation" would wrongly back up past
+            # complete characters.
+            #
+            # Bit pattern reference: leading bytes are 0xxxxxxx (ASCII) /
+            # 110xxxxx (2-byte) / 1110xxxx (3-byte) / 11110xxx (4-byte);
+            # continuation bytes are 10xxxxxx (high two bits == 10, i.e.
+            # (b & 0xC0) == 0x80). Worst case the loop decrements 3 times
+            # (the maximum continuation-byte count for a 4-byte sequence).
             $bytes  = [System.Text.Encoding]::UTF8.GetBytes($raw)
             $cutoff = $maxBytes
-            while ($cutoff -gt 0 -and (($bytes[$cutoff] -band 0xC0) -eq 0x80)) {
+            # Defensive bounds: $cutoff < $bytes.Length is guaranteed by
+            # the GetByteCount > $maxBytes check above, but keep the
+            # explicit guard for the cold-read reader.
+            while ($cutoff -gt 0 -and $cutoff -lt $bytes.Length -and (($bytes[$cutoff] -band 0xC0) -eq 0x80)) {
                 $cutoff--
             }
             $safePrefix = [System.Text.Encoding]::UTF8.GetString($bytes, 0, $cutoff)

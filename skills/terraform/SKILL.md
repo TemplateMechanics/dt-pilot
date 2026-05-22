@@ -48,7 +48,7 @@ dt-pilot's convention for a Terraform-backed Dynatrace project:
 Two files dt-pilot adds on top of the standard Terraform layout:
 
 - **`envs/<env>.local.tfvars`** — gitignored per-developer overrides. Matches the `.vscode/mcp.session.json` pattern.
-- **`dryrun/<env>.json`** — the dt-pilot plan-envelope JSON written by `Invoke-TerraformPlan.ps1`. Same name + location as the Monaco artifact; different schema identifier (`dt-pilot.tfplan/v1`).
+- **`dryrun/<env>.json`** — the dt-pilot plan-envelope JSON written by `Invoke-TerraformPlan.ps1`. Same default name + folder as the Monaco artifact; different schema identifier (`dt-pilot.tfplan/v1`). **Path note:** the layout above shows it inside the Terraform workspace for visual symmetry, but the wrapper actually writes it under your *current working directory* (the directory you ran the script from), not under `-Path`. Pass an absolute `-EnvelopeOut` if you want a specific location, or `cd` into the workspace before invoking. The apply wrapper takes `-PlanFile` as an explicit path, so the envelope location doesn't have to match the workspace.
 
 ---
 
