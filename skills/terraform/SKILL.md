@@ -4,7 +4,7 @@ This is the per-backend skill for managing Dynatrace configuration through the o
 
 Read this skill before editing any `.tf`, `.tfvars`, or `.terraform.lock.hcl` in a workspace whose `config/catalog/backends.json` lists the `terraform` backend.
 
-Wrapper scripts referenced below live at `scripts/terraform/`. They auto-translate dt-pilot's canonical auth env vars (`DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) to the provider-specific names (`DT_ENV_URL`, `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET`, `DT_ACCOUNT_ID`) at runtime — you set the canonical names once, the wrappers handle translation.
+Wrapper scripts referenced below live at `scripts/terraform/`. They auto-translate dt-pilot's canonical auth env vars (`DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) to the provider-specific names (`DT_ENV_URL`, `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET`) at runtime — you set the canonical names once, the wrappers handle translation. `DT_ACCOUNT_ID` has NO canonical equivalent and is NOT translated; if a Dynatrace operation requires it (account-management API calls; some token operations), set `DT_ACCOUNT_ID` directly and the wrappers will pass it through to the child terraform process unchanged.
 
 > **Provenance.** Wrapper shapes are inspired by [TemplateMechanics/tf-pilot](https://github.com/TemplateMechanics/tf-pilot), with adjustments for dt-pilot's tighter Dynatrace focus and its `dt-pilot.tfplan/v1` artifact envelope. tf-pilot remains the right harness for multi-cloud / multi-provider Terraform; dt-pilot's Terraform backend is opinionated for Dynatrace-vertical workflows.
 

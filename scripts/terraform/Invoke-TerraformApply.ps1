@@ -14,7 +14,10 @@
       3. Environment match: envelope's `environment` matches -Environment.
       4. Workspace-content hash match: SHA-256 over the current .tf /
          .tfvars / .terraform.lock.hcl matches the envelope's `workspaceHash`.
-      5. Freshness: envelope is no older than -MaxAgeMinutes (default 30).
+      5. Freshness: envelope is no older than -MaxAgeMinutes (default 30)
+         AND its createdAtUtc is not more than 5 min in the future
+         (rejecting clock-skew / hand-edited "future" timestamps that
+         would otherwise let stale plans bypass the age check).
       6. workingDir match: envelope's `workingDir` field is present and
          normalizes (case-insensitive on Windows, case-sensitive on
          Linux/macOS) to the resolved -Path; a missing field is a hard
@@ -89,11 +92,25 @@ try {
     throw "Plan envelope's 'createdAtUtc' value '$($meta.createdAtUtc)' is not a parseable ISO-8601 timestamp ($($_.Exception.Message)); refusing to apply from a malformed envelope."
 }
 $ageMinExact = ([datetime]::UtcNow - $createdAt).TotalMinutes
+# Reject envelopes whose timestamps sit in the future. Without this,
+# clock skew at plan time (or a hand-edited timestamp) makes
+# $ageMinExact negative, the `-gt $MaxAgeMinutes` check trivially
+# passes, and arbitrarily old plans become appliable as long as their
+# stored timestamp is ahead of UtcNow. Allow a small tolerance for
+# legitimate NTP-skew between machines (default 5 min) -- past that,
+# refuse with a targeted message.
+$futureToleranceMin = 5
+if ($ageMinExact -lt -$futureToleranceMin) {
+    $futureSkew = [Math]::Round(-$ageMinExact, 1)
+    throw "Plan envelope's 'createdAtUtc' ($($meta.createdAtUtc)) is $futureSkew minute(s) in the future; refusing to apply (clock skew or hand-edited timestamp). Re-run Invoke-TerraformPlan.ps1 after fixing the clock."
+}
 if ($ageMinExact -gt $MaxAgeMinutes) {
     $ageMinDisplay = [Math]::Round($ageMinExact, 1)
     throw "Plan envelope is $ageMinDisplay minute(s) old; max permitted is $MaxAgeMinutes minute(s). Re-run Invoke-TerraformPlan.ps1."
 }
-$ageMin = [Math]::Round($ageMinExact, 1)
+# Clamp negative ages (within the tolerance band above) to 0 for the
+# display string -- "-2 minute(s) old" is confusing in the operator log.
+$ageMin = [Math]::Round([Math]::Max($ageMinExact, 0), 1)
 
 # Working-directory match: enforce what the docstring promises. The
 # workspaceHash check would also catch most cross-workspace cases, but

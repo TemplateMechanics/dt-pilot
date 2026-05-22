@@ -1251,6 +1251,23 @@ Describe 'Terraform backend (Design 003)' {
             }
         }
 
+        It "rejects an envelope whose 'createdAtUtc' is far in the future (clock skew / hand-edit)" {
+            # Pass-15 fix: without this gate, $ageMinExact goes negative
+            # and the MaxAgeMinutes check passes trivially -- a stale
+            # plan with a forward-dated timestamp would slip through.
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $future = (Get-Date).AddMinutes(60).ToUniversalTime().ToString('o')
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev' -CreatedAtUtc $future
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*in the future*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
         It "rejects an envelope missing the 'createdAtUtc' field" {
             $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
             try {
