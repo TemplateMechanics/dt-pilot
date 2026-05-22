@@ -178,7 +178,14 @@ function Test-StringForSecrets {
     param(
         [string] $Value,
         [string] $File,
-        [string] $Location
+        [string] $Location,
+        # 'mcp' (default) or 'terraform' -- picks the remediation hint
+        # in the tenant-URL finding. MCP context recommends the
+        # type:environment input + env-var reference; Terraform context
+        # recommends an env-fed variable or local. Two file types share
+        # this function so the hint can't be one-size-fits-all without
+        # being misleading in the other.
+        [ValidateSet('mcp','terraform')] [string] $Kind = 'mcp'
     )
     if (-not $Value) { return @() }
     $hits = @()
@@ -186,7 +193,12 @@ function Test-StringForSecrets {
         $hits += ("{0}  ({1}): Dynatrace token literal detected" -f $File, $Location)
     }
     if ($Value -match $tenantUrlRegex) {
-        $hits += ("{0}  ({1}): live tenant URL literal '{2}' -- use type:environment + env-var reference instead" -f $File, $Location, $Matches[0])
+        $remediation = if ($Kind -eq 'terraform') {
+            "use a var./local. reference fed from the DT_ENVIRONMENT env var via the wrapper instead"
+        } else {
+            "use type:environment + env-var reference instead"
+        }
+        $hits += ("{0}  ({1}): live tenant URL literal '{2}' -- {3}" -f $File, $Location, $Matches[0], $remediation)
     }
     if ($Value -match $bearerInUrlRegex) {
         $hits += ("{0}  ({1}): credential embedded in URL detected" -f $File, $Location)
@@ -282,7 +294,7 @@ foreach ($file in $tfTargets) {
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
         $loc  = "line $($i + 1)"
-        $hits = Test-StringForSecrets -Value $line -File $file -Location $loc
+        $hits = Test-StringForSecrets -Value $line -File $file -Location $loc -Kind terraform
         foreach ($h in $hits) { $findings.Add($h) }
         if ($line -match $tfArgRegex) {
             $argName = $Matches[1]
