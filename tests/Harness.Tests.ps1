@@ -1179,15 +1179,77 @@ Describe 'Terraform backend (Design 003)' {
                 Remove-Item -LiteralPath $root -Recurse -Force
             }
         }
+
+        It 'rejects a workingDir mismatch (envelope produced for a different workspace path)' {
+            # Two same-content workspaces in different temp dirs. Same hash,
+            # different paths -- the workingDir gate should fire even when
+            # the envelope's recorded path doesn't exist on this machine,
+            # which is the silent-skip Copilot flagged in pass 4.
+            $rootA = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            $rootB = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $hash = Get-TerraformWorkspaceHash -WorkingDir $rootA
+                # Envelope produced "for" rootA, applied against rootB. We
+                # pass workspaceHash explicitly so the hash gate matches,
+                # forcing the workingDir gate to be the one that fires.
+                $art = New-TfPlanArtifacts -WorkingDir $rootA -Environment 'dev' -WorkspaceHash $hash
+                # Now write the plan binary into rootB too so the binary
+                # check doesn't beat us to the throw.
+                Set-Content -LiteralPath (Join-Path $rootB 'tfplan') -Value 'fake binary plan' -Encoding utf8
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $rootB -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage "*workingDir*"
+            } finally {
+                Remove-Item -LiteralPath $rootA -Recurse -Force
+                Remove-Item -LiteralPath $rootB -Recurse -Force
+            }
+        }
+
+        It "rejects an envelope missing the 'workingDir' field" {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev'
+                # Strip workingDir from the envelope -- simulates a hand-
+                # edited or malformed artifact. The gate must refuse rather
+                # than silently skip the path check.
+                $obj = Get-Content -LiteralPath $art.Envelope -Raw | ConvertFrom-Json
+                $obj.PSObject.Properties.Remove('workingDir')
+                $obj | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $art.Envelope -Encoding utf8
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage "*'workingDir' field*"
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
     }
 
     Context 'Invoke-TerraformDestroy.ps1 rejection paths' {
         It 'refuses without -Confirm' {
             $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
             try {
-                # Mandatory -Confirm switch fails parameter binding.
+                # No Mandatory attribute: the runtime check fires because
+                # $Confirm defaults to $false when the switch is omitted.
                 { & (Join-Path $script:TerraformDir 'Invoke-TerraformDestroy.ps1') `
-                    -Path $root -Environment dev -TerraformExe $script:FakeTfExe } | Should -Throw
+                    -Path $root -Environment dev -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*Refusing to destroy*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+
+        It 'refuses with explicit -Confirm:$false' {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            try {
+                # The previously-redundant Mandatory + runtime gate could
+                # not distinguish this case from "switch omitted". Now the
+                # runtime check is the single source of truth and rejects
+                # both.
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformDestroy.ps1') `
+                    -Path $root -Environment dev -Confirm:$false -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*Refusing to destroy*'
             } finally {
                 Remove-Item -LiteralPath $root -Recurse -Force
             }

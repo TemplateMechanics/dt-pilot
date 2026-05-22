@@ -26,9 +26,15 @@
     Optional -var-file (e.g. 'envs/dev.tfvars').
 
 .PARAMETER Confirm
-    Required. Must be explicitly $true. The mandatory switch is the
-    primary safety gate; chat-level destroy authorization is the
-    secondary gate enforced by the agent persona.
+    Required. Must be explicitly $true. The runtime check below is the
+    primary safety gate: it rejects both the unspecified case (switch
+    defaults to $false) AND the explicit `-Confirm:$false` case. (We
+    deliberately do NOT mark the parameter Mandatory -- a Mandatory
+    switch + a runtime $false check is double-gating that the previous
+    version of this script had, and the runtime check alone covers both
+    failure modes with a clearer error message.)
+    Chat-level destroy authorization is the secondary gate enforced by
+    the agent persona.
 
 .PARAMETER TerraformExe
     Override the Terraform executable lookup.
@@ -42,14 +48,18 @@ param(
     [Parameter(Mandatory)] [string] $Path,
     [Parameter(Mandatory)] [string] $Environment,
     [string] $VarFile,
-    [Parameter(Mandatory)] [switch] $Confirm,
+    [switch] $Confirm,
     [string] $TerraformExe
 )
 
 . "$PSScriptRoot/_Common.ps1"
 
+# Single gate: the runtime check rejects BOTH the unspecified case
+# (default $false) AND the explicit `-Confirm:$false`. Removing the
+# `[Parameter(Mandatory)]` attribute on $Confirm avoids the double-gate
+# pattern Copilot flagged in pass 4 -- one mechanism, one error message.
 if (-not $Confirm) {
-    throw "Refusing to destroy: -Confirm was not specified. Pass -Confirm to acknowledge that destroy is irreversible."
+    throw "Refusing to destroy: -Confirm was not specified (or was passed as -Confirm:`$false). Pass -Confirm to acknowledge that destroy is irreversible."
 }
 
 $exe     = Resolve-TerraformExe -TerraformExe $TerraformExe

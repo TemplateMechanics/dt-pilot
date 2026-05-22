@@ -72,16 +72,34 @@ if ($ageMinExact -gt $MaxAgeMinutes) {
 }
 $ageMin = [Math]::Round($ageMinExact, 1)
 
-# Working-directory match: enforce what the docstring promises. If the
-# envelope was produced for a different workspace path, the workspaceHash
-# check would also catch it -- but a clear up-front check produces a
-# better error message and protects against the rare same-content,
-# different-path case.
-if ($meta.workingDir) {
-    $envelopeWorkDir = (Resolve-Path -LiteralPath $meta.workingDir -ErrorAction SilentlyContinue)
-    if ($envelopeWorkDir -and ($envelopeWorkDir.ProviderPath -ne $workDir)) {
-        throw "Plan envelope was produced for workingDir '$($envelopeWorkDir.ProviderPath)' but -Path resolves to '$workDir'. Re-run Invoke-TerraformPlan.ps1 from the intended workspace, or run apply against the right -Path."
-    }
+# Working-directory match: enforce what the docstring promises. The
+# workspaceHash check would also catch most cross-workspace cases, but
+# a clear up-front path check produces a better error message and
+# protects against the rare same-content, different-path case.
+#
+# Compare normalized string forms, not Resolve-Path output, so an
+# envelope produced in a different checkout (where the recorded path
+# does not exist on THIS machine) becomes an explicit "wrong workspace"
+# failure rather than silently passing. Both sides are normalized:
+# trailing separators stripped and backslashes -> forward slashes; the
+# comparison is case-insensitive because Windows filesystems are.
+function Format-PathForCompare {
+    param([string] $P)
+    if (-not $P) { return '' }
+    return $P.TrimEnd('\','/').Replace('\','/')
+}
+# Strict mode rejects accessing a missing property, so guard via
+# PSObject.Properties before reading $meta.workingDir.
+$hasWorkingDir = [bool]($meta.PSObject.Properties['workingDir']) -and $meta.workingDir
+if (-not $hasWorkingDir) {
+    # Envelope without a workingDir field is malformed (Write-TfPlanMetadata
+    # always sets it). Refuse rather than silently skip the gate.
+    throw "Plan envelope is missing the 'workingDir' field; refusing to apply. Re-run Invoke-TerraformPlan.ps1 to produce a valid envelope."
+}
+$envelopeNorm = Format-PathForCompare $meta.workingDir
+$currentNorm  = Format-PathForCompare $workDir
+if (-not $envelopeNorm.Equals($currentNorm, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Plan envelope was produced for workingDir '$($meta.workingDir)' but -Path resolves to '$workDir'. Re-run Invoke-TerraformPlan.ps1 from the intended workspace, or run apply against the right -Path."
 }
 
 # Binary plan file must still exist at the (workdir-relative) path the
