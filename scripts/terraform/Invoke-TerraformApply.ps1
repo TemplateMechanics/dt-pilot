@@ -99,7 +99,7 @@ $ageMinExact = ([datetime]::UtcNow - $createdAt).TotalMinutes
 # Reject envelopes whose timestamps sit in the future. Without this,
 # clock skew at plan time (or a hand-edited timestamp) makes
 # $ageMinExact negative, the `-gt $MaxAgeMinutes` check trivially
-# passes, and arbitrarily old plans become appliable as long as their
+# passes, and arbitrarily old plans become applicable as long as their
 # stored timestamp is ahead of UtcNow. Allow a small tolerance for
 # legitimate NTP-skew between machines (default 5 min) -- past that,
 # refuse with a targeted message.

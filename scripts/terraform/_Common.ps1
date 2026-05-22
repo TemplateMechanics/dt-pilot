@@ -285,9 +285,16 @@ function Read-TfPlanMetadata {
         throw "Plan envelope is missing the 'exitCode' field; refusing to apply from a malformed envelope: $PlanFile"
     }
     $exitCodeRaw = $obj.exitCode
+    if ($null -eq $exitCodeRaw) {
+        # Handle `"exitCode": null` separately -- otherwise the
+        # GetType() call in the non-integer branch below throws a
+        # NullReferenceException and the operator gets a stack trace
+        # instead of a targeted "malformed envelope" message.
+        throw "Plan envelope's 'exitCode' is null; refusing to apply from a malformed envelope: $PlanFile"
+    }
     if ($exitCodeRaw -isnot [int] -and $exitCodeRaw -isnot [long]) {
-        # JSON numbers deserialize to Int64; reject strings / nulls /
-        # objects so a hand-edited envelope can't sneak a non-integer in.
+        # JSON numbers deserialize to Int64; reject strings / objects
+        # so a hand-edited envelope can't sneak a non-integer in.
         throw "Plan envelope's 'exitCode' is not an integer (got type $($exitCodeRaw.GetType().FullName), value '$exitCodeRaw'); refusing to apply: $PlanFile"
     }
     if ($exitCodeRaw -ne 0) {
@@ -323,9 +330,15 @@ function Read-TfPlanMetadata {
     # counts, printed in the operator log before apply. Validate the
     # nested fields the wrapper actually reads so a hand-edited envelope
     # missing them surfaces as "missing 'summary.wouldX'" rather than
-    # PropertyNotFoundException under StrictMode.
+    # PropertyNotFoundException under StrictMode. Also guard against
+    # `"summary": null` and `"summary": "string-not-an-object"` -- both
+    # would make the PSObject.Properties walk below throw an unrelated
+    # error.
     if (-not $obj.PSObject.Properties['summary']) {
         throw "Plan envelope is missing the 'summary' field; refusing to apply from a malformed envelope: $PlanFile"
+    }
+    if ($null -eq $obj.summary -or $obj.summary -is [string] -or $obj.summary -is [array]) {
+        throw "Plan envelope's 'summary' is not an object (got '$($obj.summary)'); refusing to apply from a malformed envelope: $PlanFile"
     }
     foreach ($field in @('wouldAdd','wouldChange','wouldDestroy')) {
         if (-not $obj.summary.PSObject.Properties[$field]) {
