@@ -107,14 +107,20 @@ if ($StagedOnly) {
     # .tfvars is the most common place a developer accidentally pastes a
     # token while iterating ("I'll just put it in dev.tfvars for now"),
     # so the scanner MUST cover them too. Use Get-ChildItem -Recurse with
-    # explicit exclusions for paths that aren't real source (.terraform/
-    # provider cache; downloaded/ snapshots; envs/*.local.tfvars which
-    # is .gitignored as the per-developer secrets file).
+    # explicit exclusions for paths that aren't real source: the
+    # .terraform/ provider cache, the downloaded/ snapshots, and the
+    # gitignored developer-local override files. Two override conventions
+    # are excluded:
+    #   - *.local.tfvars / *.local.tfvars.json (dt-pilot's per-developer
+    #     scratch convention; .gitignored).
+    #   - *.auto.tfvars / *.auto.tfvars.json (Terraform's own auto-loaded
+    #     overrides; also .gitignored in this repo; same intent --
+    #     developer-local values that should never reach the audit).
     $tfPatterns = @('*.tf','*.tfvars','*.tfvars.json')
     $tfTargets = @(foreach ($pat in $tfPatterns) {
-        Get-ChildItem -LiteralPath $repoRoot -Filter $pat -Recurse -File -ErrorAction SilentlyContinue |
+        Get-ChildItem -LiteralPath $repoRoot -Filter $pat -Recurse -File -Force -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch '[\\/](\.terraform|downloaded)[\\/]' } |
-            Where-Object { $_.Name -notmatch '\.local\.tfvars(\.json)?$' } |
+            Where-Object { $_.Name -notmatch '\.(local|auto)\.tfvars(\.json)?$' } |
             ForEach-Object { $_.FullName }
     })
 }

@@ -1126,6 +1126,31 @@ Describe 'Terraform backend (Design 003)' {
             $missing = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfgone-" + [System.Guid]::NewGuid().ToString('N') + ".json")
             { Read-TfPlanMetadata -PlanFile $missing } | Should -Throw -ExpectedMessage '*does not exist*'
         }
+
+        It "rejects an envelope missing the 'exitCode' field with a distinct error message" {
+            # Pass-8 fix: previously, a missing exitCode field compared
+            # $null -ne 0 -> $true and threw "non-zero exit code ()",
+            # confusing the operator who can't tell whether the plan
+            # failed or the envelope was malformed. Now those are two
+            # explicitly different error paths.
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfnoexit-" + [System.Guid]::NewGuid().ToString('N') + ".json")
+            '{"schema":"dt-pilot.tfplan/v1","environment":"dev"}' | Set-Content -LiteralPath $tmp -Encoding utf8
+            try {
+                { Read-TfPlanMetadata -PlanFile $tmp } | Should -Throw -ExpectedMessage "*missing the 'exitCode' field*"
+            } finally {
+                Remove-Item -LiteralPath $tmp -Force
+            }
+        }
+
+        It "rejects an envelope whose 'exitCode' is not an integer" {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfbadexit-" + [System.Guid]::NewGuid().ToString('N') + ".json")
+            '{"schema":"dt-pilot.tfplan/v1","environment":"dev","exitCode":"zero"}' | Set-Content -LiteralPath $tmp -Encoding utf8
+            try {
+                { Read-TfPlanMetadata -PlanFile $tmp } | Should -Throw -ExpectedMessage "*'exitCode' is not an integer*"
+            } finally {
+                Remove-Item -LiteralPath $tmp -Force
+            }
+        }
     }
 
     Context 'Invoke-TerraformApply.ps1 rejection paths' {

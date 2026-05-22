@@ -80,14 +80,22 @@ $ageMin = [Math]::Round($ageMinExact, 1)
 # Compare normalized string forms, not Resolve-Path output, so an
 # envelope produced in a different checkout (where the recorded path
 # does not exist on THIS machine) becomes an explicit "wrong workspace"
-# failure rather than silently passing. Both sides are normalized:
-# trailing separators stripped and backslashes -> forward slashes; the
-# comparison is case-insensitive because Windows filesystems are.
+# failure rather than silently passing. Both sides are normalized
+# (trailing separators stripped, backslashes -> forward slashes), and
+# the comparison's case-sensitivity matches the filesystem: case-
+# insensitive on Windows (where 'C:\Foo' and 'C:\foo' name the same
+# directory), case-sensitive on Linux/macOS (where they don't, and
+# treating them as equal would weaken the cross-workspace protection).
 function Format-PathForCompare {
     param([string] $P)
     if (-not $P) { return '' }
     return $P.TrimEnd('\','/').Replace('\','/')
 }
+# $IsWindows is a PS 6+ automatic; on PS 5.1 it's undefined but PS 5.1
+# only runs on Windows, so fall back to the platform check.
+$isWin = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) { $IsWindows } else { [System.Environment]::OSVersion.Platform -eq 'Win32NT' }
+$pathCmp = if ($isWin) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+
 # Strict mode rejects accessing a missing property, so guard via
 # PSObject.Properties before reading $meta.workingDir.
 $hasWorkingDir = [bool]($meta.PSObject.Properties['workingDir']) -and $meta.workingDir
@@ -98,7 +106,7 @@ if (-not $hasWorkingDir) {
 }
 $envelopeNorm = Format-PathForCompare $meta.workingDir
 $currentNorm  = Format-PathForCompare $workDir
-if (-not $envelopeNorm.Equals($currentNorm, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not $envelopeNorm.Equals($currentNorm, $pathCmp)) {
     throw "Plan envelope was produced for workingDir '$($meta.workingDir)' but -Path resolves to '$workDir'. Re-run Invoke-TerraformPlan.ps1 from the intended workspace, or run apply against the right -Path."
 }
 

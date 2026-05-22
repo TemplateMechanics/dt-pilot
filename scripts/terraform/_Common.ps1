@@ -132,10 +132,14 @@ function Get-TerraformWorkspaceHash {
     # name Terraform actually writes). An earlier version of this list
     # had 'terraform.lock.hcl' (no leading dot) which never matched, so
     # provider-version drift between plan and apply wasn't being caught.
+    # -Force is required for .terraform.lock.hcl: on Linux/macOS the
+    # leading-dot makes .NET stamp the file with Hidden, and Get-ChildItem
+    # without -Force then silently skips it -- so lockfile drift would
+    # never invalidate the hash on those runners.
     $files = New-Object System.Collections.Generic.List[string]
     $patterns = @('*.tf','*.tfvars','*.tfvars.json','.terraform.lock.hcl')
     foreach ($pat in $patterns) {
-        $matches = Get-ChildItem -LiteralPath $WorkingDir -Filter $pat -Recurse -File -ErrorAction SilentlyContinue
+        $matches = Get-ChildItem -LiteralPath $WorkingDir -Filter $pat -Recurse -File -Force -ErrorAction SilentlyContinue
         foreach ($f in $matches) { $files.Add($f.FullName) }
     }
     # Skip anything inside .terraform/ -- it's provider-cache, not source.
@@ -226,9 +230,10 @@ function Write-TfPlanMetadata {
     # byte-deterministic across editions: Windows PowerShell 5.1 writes
     # a BOM, PowerShell 7+ does not. The rest of the repo uses
     # [System.IO.File]::WriteAllText with UTF8Encoding($false) for the
-    # same reason (Sync-TerraformCatalog.ps1, Sync-MonacoCatalog.ps1) --
-    # match it here so envelope artifacts are byte-identical regardless
-    # of which shell produced them.
+    # same reason (Sync-TerraformCatalog.ps1 and
+    # scripts/monaco/Sync-ConfigCatalog.ps1) -- match it here so
+    # envelope artifacts are byte-identical regardless of which shell
+    # produced them.
     $json = $meta | ConvertTo-Json -Depth 8
     [System.IO.File]::WriteAllText($OutPath, $json, [System.Text.UTF8Encoding]::new($false))
 }
@@ -247,8 +252,22 @@ function Read-TfPlanMetadata {
     if (-not $obj.PSObject.Properties['schema'] -or $obj.schema -ne 'dt-pilot.tfplan/v1') {
         throw "Plan envelope is not a dt-pilot tfplan/v1 artifact (missing or wrong 'schema'): $PlanFile"
     }
-    if ($obj.exitCode -ne 0) {
-        throw "Plan envelope recorded a non-zero exit code ($($obj.exitCode)); refusing to apply from a failed plan: $PlanFile"
+    # Validate exitCode presence + type explicitly. Without this guard,
+    # a missing field would compare $null -ne 0 -> $true and throw
+    # "non-zero exit code ()", which is confusing for the operator who
+    # then can't tell whether the plan failed or the envelope was just
+    # malformed. Surface the two cases separately.
+    if (-not $obj.PSObject.Properties['exitCode']) {
+        throw "Plan envelope is missing the 'exitCode' field; refusing to apply from a malformed envelope: $PlanFile"
+    }
+    $exitCodeRaw = $obj.exitCode
+    if ($exitCodeRaw -isnot [int] -and $exitCodeRaw -isnot [long]) {
+        # JSON numbers deserialize to Int64; reject strings / nulls /
+        # objects so a hand-edited envelope can't sneak a non-integer in.
+        throw "Plan envelope's 'exitCode' is not an integer (got type $($exitCodeRaw.GetType().FullName), value '$exitCodeRaw'); refusing to apply: $PlanFile"
+    }
+    if ($exitCodeRaw -ne 0) {
+        throw "Plan envelope recorded a non-zero exit code ($exitCodeRaw); refusing to apply from a failed plan: $PlanFile"
     }
     return $obj
 }
