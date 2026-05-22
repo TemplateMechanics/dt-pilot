@@ -269,5 +269,19 @@ function Read-TfPlanMetadata {
     if ($exitCodeRaw -ne 0) {
         throw "Plan envelope recorded a non-zero exit code ($exitCodeRaw); refusing to apply from a failed plan: $PlanFile"
     }
+    # Validate every other load-bearing field up front so the apply
+    # wrapper doesn't have to keep adding ad-hoc PSObject.Properties
+    # guards and StrictMode doesn't surface "PropertyNotFoundException"
+    # for malformed envelopes. The wrapper's own checks (path equality,
+    # path-traversal, freshness, hash equality) layer on top of these.
+    foreach ($field in @('environment','workspaceHash','createdAtUtc','workingDir','planBinary')) {
+        if (-not $obj.PSObject.Properties[$field]) {
+            throw "Plan envelope is missing the '$field' field; refusing to apply from a malformed envelope: $PlanFile"
+        }
+        $val = $obj.$field
+        if ($val -isnot [string] -or [string]::IsNullOrWhiteSpace($val)) {
+            throw "Plan envelope's '$field' is not a non-empty string (value '$val'); refusing to apply from a malformed envelope: $PlanFile"
+        }
+    }
     return $obj
 }

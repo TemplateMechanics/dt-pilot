@@ -116,10 +116,15 @@ if ($StagedOnly) {
     #   - *.auto.tfvars / *.auto.tfvars.json (Terraform's own auto-loaded
     #     overrides; also .gitignored in this repo; same intent --
     #     developer-local values that should never reach the audit).
+    # Add .git/ to the directory-exclusion list. The recursive walk
+    # would otherwise descend into pack files / hooks / refs and waste
+    # cycles even though Get-ChildItem -Filter strips out the non-tf
+    # entries afterward. Same for node_modules/ in case a contributor
+    # vendors anything alongside the Terraform sources.
     $tfPatterns = @('*.tf','*.tfvars','*.tfvars.json')
     $tfTargets = @(foreach ($pat in $tfPatterns) {
         Get-ChildItem -LiteralPath $repoRoot -Filter $pat -Recurse -File -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch '[\\/](\.terraform|downloaded)[\\/]' } |
+            Where-Object { $_.FullName -notmatch '[\\/](\.git|\.terraform|node_modules|downloaded)[\\/]' } |
             Where-Object { $_.Name -notmatch '\.(local|auto)\.tfvars(\.json)?$' } |
             ForEach-Object { $_.FullName }
     })

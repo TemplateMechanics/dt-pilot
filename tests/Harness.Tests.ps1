@@ -292,7 +292,13 @@ Describe 'Test-McpConfigSecrets.ps1' {
         # mangled into escape sequences (\t, \n, etc).
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1424,7 +1430,13 @@ provider "dynatrace" {
         # treats $tmpDir as the repo root.
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1456,7 +1468,13 @@ resource "dynatrace_notification" "webhook" {
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1483,7 +1501,13 @@ provider "dynatrace" {
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1509,7 +1533,13 @@ resource "dynatrace_management_zone_v2" "x" {
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1537,7 +1567,13 @@ dt_env_url = "https://abc12345.live.dynatrace.com"
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1566,7 +1602,13 @@ dt_env_url = "https://abc12345.live.dynatrace.com"
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
@@ -1590,7 +1632,13 @@ owner      = "platform@example.test"
 
         $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
         $copy = Join-Path $tmpDir 'scan.ps1'
-        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        # Escape single quotes in $tmpDir before embedding in the
+        # single-quoted PS literal we're injecting -- a temp path like
+        # C:\Users\O'Connor\... would otherwise produce syntactically
+        # invalid PS source. PowerShell single-quoted string escape:
+        # a literal single quote is written as two single quotes.
+        $tmpDirEscaped = $tmpDir.Replace("'", "''")
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDirEscaped/scripts'")
         Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
         $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
 
