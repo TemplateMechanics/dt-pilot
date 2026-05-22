@@ -269,8 +269,14 @@ foreach ($file in $tfTargets) {
     # appears when the file ends with a newline. This preserves the
     # single-line-file safety the @(Get-Content ...) array coercion
     # gave us: even a one-line file becomes a 1-element array.
+    #
+    # The `-gt 1` guard is load-bearing: an empty file `-split` returns
+    # a single-element `('')`, and `0..-1` is the REVERSE range `0,-1`
+    # in PowerShell (not the empty range you'd expect from Python-style
+    # slicing) which would duplicate / corrupt the line list. So only
+    # trim when there are at least two elements to begin with.
     $lines = $fullContent -split "`r?`n"
-    if ($lines.Length -gt 0 -and $lines[-1] -eq '') {
+    if ($lines.Length -gt 1 -and $lines[-1] -eq '') {
         $lines = $lines[0..($lines.Length - 2)]
     }
     for ($i = 0; $i -lt $lines.Count; $i++) {

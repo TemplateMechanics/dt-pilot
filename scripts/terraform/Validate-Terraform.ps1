@@ -49,11 +49,20 @@ param(
 $exe     = Resolve-TerraformExe -TerraformExe $TerraformExe
 $workDir = Resolve-TerraformWorkingDir -Path $Path
 
+# Build the canonical -> provider-specific env-var translation. fmt
+# alone doesn't need provider env, but `terraform validate` does any
+# provider-configuration-time checks the dynatrace provider performs
+# (and any module that uses `data` sources during validate) -- pass
+# the same -ExtraEnv every other wrapper uses so behaviour stays
+# consistent and users who only set the canonical dt-pilot names get
+# the same translation here. The parent shell's $env: stays untouched.
+$providerEnv = Get-TerraformProviderEnv
+
 $failed = $false
 
 if (-not $SkipFmt) {
     Write-Host "terraform fmt -check"
-    $fmt = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('fmt','-check','-recursive') -WorkingDirectory $workDir -CaptureOutput
+    $fmt = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('fmt','-check','-recursive') -WorkingDirectory $workDir -CaptureOutput -ExtraEnv $providerEnv
     if ($fmt.StdOut) { Write-Host $fmt.StdOut.TrimEnd() }
     # Print StdErr too -- terraform fmt often emits the actual
     # "couldn't read file" / "invalid HCL" details to stderr and hiding
@@ -68,7 +77,7 @@ if (-not $SkipFmt) {
 }
 
 Write-Host "terraform validate"
-$val = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('validate') -WorkingDirectory $workDir -CaptureOutput
+$val = Invoke-TerraformCommand -TerraformExe $exe -Arguments @('validate') -WorkingDirectory $workDir -CaptureOutput -ExtraEnv $providerEnv
 if ($val.StdOut) { Write-Host $val.StdOut.TrimEnd() }
 if ($val.StdErr) { Write-Host $val.StdErr.TrimEnd() }
 if ($val.ExitCode -ne 0) {
