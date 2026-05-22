@@ -103,7 +103,10 @@ if ($StagedOnly) {
     # reduces to zero or one element under strict mode.
     $mcpTargets = @($mcpTargets | Where-Object { $_ -notmatch 'mcp\.session(\..*)?\.json$' })
 
-    # All committed Terraform source files: .tf + .tfvars + .tfvars.json.
+    # All Terraform source files in the working tree (.tf + .tfvars +
+    # .tfvars.json -- tracked AND untracked, since `git diff --cached`
+    # is the staged-only path above; this default mode is the operator-
+    # driven full-repo audit and should catch scratch files too).
     # .tfvars is the most common place a developer accidentally pastes a
     # token while iterating ("I'll just put it in dev.tfvars for now"),
     # so the scanner MUST cover them too. Use Get-ChildItem -Recurse with
