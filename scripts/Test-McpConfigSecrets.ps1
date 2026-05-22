@@ -9,10 +9,13 @@
     Two scan paths:
 
     1. **MCP configs** (.vscode/mcp.json and any *.mcp.json). Parsed as
-       JSON; only the load-bearing fields are scanned (every 'value'
-       under 'env:' blocks and every 'value' under 'inputs[]' entries).
-       'description' fields and other free-text are NOT scanned, so
-       realistic example URLs in prompts don't trip the scanner.
+       JSON; only the load-bearing fields are scanned: every value under
+       'servers.<id>.env.*' blocks, every entry of 'servers.<id>.args[]'
+       arrays (which can carry a tenant URL or token literal passed
+       through to the server process), and every 'value' / 'default'
+       under 'inputs[]' entries. 'description' fields and other
+       free-text are NOT scanned, so realistic example URLs in prompts
+       don't trip the scanner.
 
     2. **Terraform source files** -- *.tf, *.tfvars, and *.tfvars.json
        anywhere in the repo. Line-by-line regex scan. The convention
@@ -126,7 +129,7 @@ if ($StagedOnly) {
     # repeated three times (once per file pattern). Walk the tree
     # ourselves and skip excluded dirs at the dir level so they're
     # never traversed.
-    $excludeDirs = @('.git', '.terraform', 'node_modules', 'downloaded')
+    $excludeDirs = @('.git', '.terraform', 'node_modules', 'downloaded', 'download')
     $tfTargets = New-Object System.Collections.Generic.List[string]
     $stack = New-Object System.Collections.Generic.Stack[string]
     $stack.Push($repoRoot)

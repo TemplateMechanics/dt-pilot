@@ -145,7 +145,7 @@ function Get-TerraformWorkspaceHash {
     # plus the lockfile literally named '.terraform.lock.hcl' (note
     # the leading dot -- the actual Terraform filename). State files
     # (terraform.tfstate*) are deliberately excluded as before.
-    $excludeDirs = @('.git', '.terraform', 'node_modules', 'downloaded')
+    $excludeDirs = @('.git', '.terraform', 'node_modules', 'downloaded', 'download')
     $files = New-Object System.Collections.Generic.List[string]
     $stack = New-Object System.Collections.Generic.Stack[string]
     $stack.Push($WorkingDir)
