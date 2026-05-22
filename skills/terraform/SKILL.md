@@ -2,7 +2,7 @@
 
 This is the per-backend skill for managing Dynatrace configuration through the official [`dynatrace-oss/dynatrace`](https://registry.terraform.io/providers/dynatrace-oss/dynatrace/latest) Terraform provider. It is one of several backends under `skills/<backend>/SKILL.md`. The cross-backend contract — plan-as-artifact, apply gates, destroy gates, secret hygiene, MCP-first reads, branch + PR discipline — lives in [`skills/iac/SKILL.md`](../iac/SKILL.md). Read that skill first if you haven't; this document assumes you know the contract and covers Terraform's implementation of it.
 
-Read this skill before editing any `.tf`, `.tfvars`, or `terraform.lock.hcl` in a workspace whose `config/catalog/backends.json` lists the `terraform` backend.
+Read this skill before editing any `.tf`, `.tfvars`, or `.terraform.lock.hcl` in a workspace whose `config/catalog/backends.json` lists the `terraform` backend.
 
 Wrapper scripts referenced below live at `scripts/terraform/`. They auto-translate dt-pilot's canonical auth env vars (`DT_ENVIRONMENT`, `DT_PLATFORM_TOKEN`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) to the provider-specific names (`DT_ENV_URL`, `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET`, `DT_ACCOUNT_ID`) at runtime — you set the canonical names once, the wrappers handle translation.
 
@@ -80,7 +80,7 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope (same fields, different `schema
 
 1. **Schema match.** Artifact's `schema` is `dt-pilot.tfplan/v1`.
 2. **Environment match.** Artifact's `environment` matches `-Environment`.
-3. **Workspace-content hash match.** SHA-256 over every `*.tf`, `*.tfvars`, and `terraform.lock.hcl` in the working directory matches the artifact's `workspaceHash`. Any edit invalidates the apply.
+3. **Workspace-content hash match.** SHA-256 over every `*.tf`, `*.tfvars`, and `.terraform.lock.hcl` in the working directory matches the artifact's `workspaceHash`. Any edit invalidates the apply.
 4. **Freshness.** Artifact is no older than `-MaxAgeMinutes` (default 30).
 
 PLUS two Terraform-specific checks:
@@ -111,7 +111,7 @@ terraform {
 }
 ```
 
-Both Terraform and the provider get an explicit version constraint. Unpinned versions are forbidden — they invalidate the `terraform.lock.hcl` hash check that `Invoke-TerraformApply.ps1` performs.
+Both Terraform and the provider get an explicit version constraint. Unpinned versions are forbidden — they invalidate the `.terraform.lock.hcl` hash check that `Invoke-TerraformApply.ps1` performs.
 
 ### 4.2 Provider block reads ONLY from env
 

@@ -1268,6 +1268,29 @@ Describe 'Terraform backend (Design 003)' {
             }
         }
 
+        It "rejects an envelope whose 'planBinary' is an absolute path outside the workdir" {
+            $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
+            $elsewhere = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-otherwhere-" + [System.Guid]::NewGuid().ToString('N'))
+            $null = New-Item -ItemType Directory -Path $elsewhere
+            $outsidePlan = Join-Path $elsewhere 'tfplan'
+            Set-Content -LiteralPath $outsidePlan -Value 'fake binary plan' -Encoding utf8
+            try {
+                $art = New-TfPlanArtifacts -WorkingDir $root -Environment 'dev'
+                $obj = Get-Content -LiteralPath $art.Envelope -Raw | ConvertFrom-Json
+                # Rooted path that exists but is NOT under $root. Must
+                # be rejected even though the file is there.
+                $obj.planBinary = $outsidePlan
+                $obj | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $art.Envelope -Encoding utf8
+                { & (Join-Path $script:TerraformDir 'Invoke-TerraformApply.ps1') `
+                    -Path $root -Environment dev `
+                    -PlanFile $art.Envelope -TerraformExe $script:FakeTfExe } |
+                    Should -Throw -ExpectedMessage '*absolute path outside the working directory*'
+            } finally {
+                Remove-Item -LiteralPath $root -Recurse -Force
+                Remove-Item -LiteralPath $elsewhere -Recurse -Force
+            }
+        }
+
         It "rejects an envelope whose 'planBinary' contains a path traversal" {
             $root = New-TempTfWorkspace -Files @{ 'main.tf' = 'resource "null_resource" "x" {}' }
             try {

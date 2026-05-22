@@ -134,6 +134,19 @@ $planBinRaw = $meta.planBinary
 if ($planBinRaw -match '(^|[\\/])\.\.([\\/]|$)') {
     throw "Plan envelope's 'planBinary' contains a path traversal ('..'): $planBinRaw. Plans must live inside the workspace they were produced for; re-run Invoke-TerraformPlan.ps1 with -Out under the working directory."
 }
+# Likewise reject a rooted (absolute) planBinary unless it resolves
+# under $workDir. The envelope's planBinary is meant to be workdir-
+# relative for portability; a rooted value points to a specific path
+# on whoever-ran-plan's machine, which both breaks portability AND
+# (combined with a hand-edited envelope) could direct `terraform apply`
+# at a plan file completely outside the workspace.
+if ([System.IO.Path]::IsPathRooted($planBinRaw)) {
+    $rootedFull = [System.IO.Path]::GetFullPath($planBinRaw)
+    $workFull   = [System.IO.Path]::GetFullPath($workDir).TrimEnd('\','/') + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $rootedFull.StartsWith($workFull, $pathCmp)) {
+        throw "Plan envelope's 'planBinary' is an absolute path outside the working directory: '$planBinRaw' is not under '$workDir'. Plans must live inside the workspace; re-run Invoke-TerraformPlan.ps1 with a workdir-relative -Out."
+    }
+}
 $planBin = $planBinRaw
 if (-not [System.IO.Path]::IsPathRooted($planBin)) {
     $planBin = Join-Path $workDir $planBin

@@ -140,7 +140,25 @@ function New-ScaffoldFiles {
     $tf.Add("  # TODO: add the resource-specific blocks from the provider docs.")
     $tf.Add("}")
 
-    # variables.tf.example
+    # variables.tf.example. Catalog descriptions are author-written
+    # free text; before injecting one into an HCL double-quoted string
+    # we MUST escape the three characters HCL treats specially:
+    #   \ -> \\   (must come first so the rest aren't doubled)
+    #   " -> \"
+    # plus collapse any embedded newlines to "\n" sequences so a multi-
+    # line description doesn't break out of the string and produce
+    # syntactically invalid HCL. None of the current catalog entries hit
+    # this case, but it's a foot-gun waiting for the first description
+    # that needs a literal quote.
+    function Format-HclString {
+        param([string] $S)
+        if ($null -eq $S) { return '' }
+        $escaped = $S.Replace('\','\\').Replace('"','\"')
+        # Normalize CRLF -> LF first so we don't emit \r\n.
+        $escaped = $escaped.Replace("`r`n","`n").Replace("`r","`n").Replace("`n",'\n')
+        return $escaped
+    }
+
     $vars = New-Object System.Collections.Generic.List[string]
     $vars.Add("# GENERATED FILE - do not hand-edit. Regenerate with ./scripts/terraform/Sync-TerraformCatalog.ps1")
     $vars.Add("# SPDX-License-Identifier: MIT")
@@ -151,7 +169,7 @@ function New-ScaffoldFiles {
             $vars.Add("")
             $vars.Add("variable ""$($v.name)"" {")
             $vars.Add("  type        = $($v.type)")
-            $vars.Add("  description = ""$($v.description)""")
+            $vars.Add("  description = ""$(Format-HclString $v.description)""")
             $vars.Add("}")
         }
     }
