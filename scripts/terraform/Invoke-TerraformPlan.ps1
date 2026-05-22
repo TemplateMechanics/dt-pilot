@@ -76,6 +76,39 @@ if ($VarFile) {
     $args += @('-var-file', $VarFile)
 }
 
+# Validate $Out shape BEFORE invoking terraform (the planBinary
+# computation farther down also does this for the envelope; doing it
+# up front means malformed values fail fast with a clear message
+# instead of after a useless terraform invocation). Same rules:
+# rooted -Out must resolve under $workDir; relative -Out must not
+# contain '..'.
+if ([System.IO.Path]::IsPathRooted($Out)) {
+    $isWin = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) { $IsWindows } else { [System.Environment]::OSVersion.Platform -eq 'Win32NT' }
+    $outPathCmp = if ($isWin) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    $outRootedFull = [System.IO.Path]::GetFullPath($Out)
+    $outWorkFull   = [System.IO.Path]::GetFullPath($workDir).TrimEnd('\','/') + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $outRootedFull.StartsWith($outWorkFull, $outPathCmp)) {
+        throw "-Out '$Out' resolves to a path outside the working directory '$workDir'. The binary plan must live inside the workspace it was produced for; pass a workdir-relative -Out (e.g. 'tfplan' or 'plans/dev.tfplan') or omit -Out to use the default."
+    }
+} elseif ($Out -match '(^|[\\/])\.\.([\\/]|$)') {
+    throw "-Out '$Out' contains a '..' traversal that would escape the working directory. Pass a path that stays under '$workDir'."
+}
+
+# Ensure the parent directory of $Out exists before invoking terraform.
+# Advertised paths like `-Out plans/dev.tfplan` would otherwise fail
+# with a filesystem error from terraform itself ("no such file or
+# directory"). For relative $Out, resolve under $workDir (where the
+# child terraform process runs); for rooted $Out the validation above
+# confirmed it sits under $workDir, so its parent is also under workdir.
+$planParentDir = if ([System.IO.Path]::IsPathRooted($Out)) {
+    [System.IO.Path]::GetDirectoryName($Out)
+} else {
+    [System.IO.Path]::GetDirectoryName((Join-Path $workDir $Out))
+}
+if ($planParentDir -and -not (Test-Path -LiteralPath $planParentDir -PathType Container)) {
+    $null = New-Item -ItemType Directory -Path $planParentDir -Force
+}
+
 Write-Host "Plan: $workDir -> environment '$Environment' -> $Out"
 $planResult = Invoke-TerraformCommand -TerraformExe $exe -Arguments $args -WorkingDirectory $workDir -CaptureOutput -ExtraEnv $providerEnv
 if ($planResult.StdOut) { Write-Host $planResult.StdOut.TrimEnd() }
@@ -182,40 +215,14 @@ $envelopePath = if ([System.IO.Path]::IsPathRooted($EnvelopeOut)) { $EnvelopeOut
 
 # Store planBinary as the workdir-relative path so the envelope is
 # portable across checkouts / agents / docker mounts. The apply wrapper
-# re-roots against the workdir it was invoked with.
-#
-# Two failure modes the apply step can no longer compensate for, so
-# refuse them here at plan time:
-#   1. An absolute -Out that points OUTSIDE the working directory.
-#      GetRelativePath would emit '../../...' and the apply wrapper now
-#      explicitly rejects '..' in planBinary as path traversal -- so
-#      the resulting envelope would be unappliable. Catch it here with
-#      a clearer message instead.
-#   2. A relative -Out that already contains '..' (e.g. '-Out ../tfplan'
-#      writing one directory up from $workDir). Same problem: the apply
-#      wrapper would refuse the resulting envelope.
-# The contract is "the plan and envelope travel together inside the
-# workspace" -- which only holds if the binary plan IS inside the
-# workspace.
-if ([System.IO.Path]::IsPathRooted($Out)) {
-    # Match the apply-side path comparison: case-insensitive on Windows
-    # (filesystem is), case-sensitive on Linux/macOS (filesystem is). The
-    # previous unconditional OrdinalIgnoreCase could let a case-only
-    # difference slip past here and then fail at apply time with a
-    # confusing message.
-    $isWin = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) { $IsWindows } else { [System.Environment]::OSVersion.Platform -eq 'Win32NT' }
-    $pathCmp = if ($isWin) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
-    $rootedFull = [System.IO.Path]::GetFullPath($Out)
-    $workFull   = [System.IO.Path]::GetFullPath($workDir).TrimEnd('\','/') + [System.IO.Path]::DirectorySeparatorChar
-    if (-not $rootedFull.StartsWith($workFull, $pathCmp)) {
-        throw "-Out '$Out' resolves to a path outside the working directory '$workDir'. The binary plan must live inside the workspace it was produced for; pass a workdir-relative -Out (e.g. 'tfplan' or 'plans/dev.tfplan') or omit -Out to use the default."
-    }
-    $planBinRelative = [System.IO.Path]::GetRelativePath($workDir, $Out).Replace('\','/')
+# re-roots against the workdir it was invoked with. $Out has already
+# been validated above (rooted -> must be under $workDir; relative ->
+# no '..' traversal), so the only remaining work here is the relative-
+# path conversion.
+$planBinRelative = if ([System.IO.Path]::IsPathRooted($Out)) {
+    [System.IO.Path]::GetRelativePath($workDir, $Out).Replace('\','/')
 } else {
-    if ($Out -match '(^|[\\/])\.\.([\\/]|$)') {
-        throw "-Out '$Out' contains a '..' traversal that would escape the working directory. Pass a path that stays under '$workDir'."
-    }
-    $planBinRelative = $Out.Replace('\','/')
+    $Out.Replace('\','/')
 }
 
 Write-TfPlanMetadata `

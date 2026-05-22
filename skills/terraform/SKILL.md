@@ -62,7 +62,7 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope (same fields, different `schema
   "createdAtUtc": "2026-05-21T17:00:00Z",
   "environment": "dev",
   "workingDir": "/abs/path/to/examples/terraform-baseline",
-  "workspaceHash": "<sha256 over .tf + .tfvars + .terraform.lock.hcl>",
+  "workspaceHash": "<sha256 over .tf + .tfvars + .tfvars.json + .terraform.lock.hcl>",
   "terraformVersion": "1.10.0",
   "terraformExe": "/usr/local/bin/terraform",
   "exitCode": 0,
@@ -80,7 +80,7 @@ Mirrors the Monaco `dt-pilot.dryrun/v1` envelope (same fields, different `schema
 
 1. **Schema match.** Artifact's `schema` is `dt-pilot.tfplan/v1`.
 2. **Environment match.** Artifact's `environment` matches `-Environment`.
-3. **Workspace-content hash match.** SHA-256 over every `*.tf`, `*.tfvars`, and `.terraform.lock.hcl` in the working directory matches the artifact's `workspaceHash`. Any edit invalidates the apply.
+3. **Workspace-content hash match.** SHA-256 over every `*.tf`, `*.tfvars`, `*.tfvars.json`, and `.terraform.lock.hcl` in the working directory matches the artifact's `workspaceHash`. Any edit invalidates the apply.
 4. **Freshness.** Artifact is no older than `-MaxAgeMinutes` (default 30).
 
 PLUS two Terraform-specific checks:

@@ -13,7 +13,8 @@
          (rejects malformed envelopes AND failed plans separately).
       3. Environment match: envelope's `environment` matches -Environment.
       4. Workspace-content hash match: SHA-256 over the current .tf /
-         .tfvars / .terraform.lock.hcl matches the envelope's `workspaceHash`.
+         .tfvars / .tfvars.json / .terraform.lock.hcl matches the
+         envelope's `workspaceHash`.
       5. Freshness: envelope is no older than -MaxAgeMinutes (default 30)
          AND its createdAtUtc is not more than 5 min in the future
          (rejecting clock-skew / hand-edited "future" timestamps that
@@ -76,7 +77,7 @@ if ($meta.environment -ne $Environment) {
 
 $currentHash = Get-TerraformWorkspaceHash -WorkingDir $workDir
 if ($meta.workspaceHash -ne $currentHash) {
-    throw "Workspace contents have changed since the plan was produced (workspaceHash mismatch). One or more .tf / .tfvars / lockfile entries was edited. Re-run Invoke-TerraformPlan.ps1."
+    throw "Workspace contents have changed since the plan was produced (workspaceHash mismatch). One or more .tf / .tfvars / .tfvars.json / .terraform.lock.hcl entries was edited. Re-run Invoke-TerraformPlan.ps1."
 }
 
 # createdAtUtc parseability. Read-TfPlanMetadata already validated

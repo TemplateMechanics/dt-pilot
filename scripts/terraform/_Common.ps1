@@ -122,10 +122,11 @@ function Get-TerraformWorkspaceHash {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string] $WorkingDir)
     # Stable SHA-256 over every Terraform source file the apply step
-    # would read: *.tf, *.tfvars, .terraform.lock.hcl. Sorted by
-    # workspace-relative path so the hash is reproducible across clones.
-    # State files (terraform.tfstate*) are deliberately excluded -- state
-    # is server-side / runtime, not source; including it would invalidate
+    # would read: *.tf, *.tfvars, *.tfvars.json, and the literal file
+    # named .terraform.lock.hcl. Sorted by workspace-relative path so
+    # the hash is reproducible across clones. State files
+    # (terraform.tfstate*) are deliberately excluded -- state is
+    # server-side / runtime, not source; including it would invalidate
     # every plan as soon as state evolves.
     #
     # The lockfile pattern is .terraform.lock.hcl (with leading dot, the
