@@ -76,7 +76,18 @@ if ($meta.workspaceHash -ne $currentHash) {
     throw "Workspace contents have changed since the plan was produced (workspaceHash mismatch). One or more .tf / .tfvars / lockfile entries was edited. Re-run Invoke-TerraformPlan.ps1."
 }
 
-$createdAt   = [datetime]::Parse($meta.createdAtUtc).ToUniversalTime()
+# createdAtUtc validation. Same pattern as the exitCode / workingDir /
+# planBinary guards: under StrictMode, $meta.createdAtUtc would throw
+# PropertyNotFoundException with no actionable diagnostic if the field
+# is missing -- check explicitly first, then validate it's parseable.
+if (-not $meta.PSObject.Properties['createdAtUtc'] -or -not $meta.createdAtUtc) {
+    throw "Plan envelope is missing the 'createdAtUtc' field; refusing to apply from a malformed envelope. Re-run Invoke-TerraformPlan.ps1."
+}
+try {
+    $createdAt = [datetime]::Parse($meta.createdAtUtc).ToUniversalTime()
+} catch {
+    throw "Plan envelope's 'createdAtUtc' value '$($meta.createdAtUtc)' is not a parseable ISO-8601 timestamp ($($_.Exception.Message)); refusing to apply from a malformed envelope."
+}
 $ageMinExact = ([datetime]::UtcNow - $createdAt).TotalMinutes
 if ($ageMinExact -gt $MaxAgeMinutes) {
     $ageMinDisplay = [Math]::Round($ageMinExact, 1)
