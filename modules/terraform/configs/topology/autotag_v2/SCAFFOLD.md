@@ -21,4 +21,4 @@ Settings 2.0 auto-tag rule. Tags become the primary input to downstream manageme
 ## Pre-declared variables
 
 - `tag_name` (`string`) -- Tag key (the right-hand side will come from the rule expression).
-- `rule_expression` (`string`) -- DQL-like or attribute predicate that selects the entities to tag.
+- `rule_expression` (`string`) -- DQL-like or attribute predicate that selects the entities to tag. Feeds a nested rules { } block -- no top-level provider argument.

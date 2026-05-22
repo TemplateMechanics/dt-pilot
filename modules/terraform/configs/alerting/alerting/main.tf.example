@@ -4,7 +4,7 @@
 # Copy this file to your project's main.tf (or merge in) and fill the TODO markers.
 
 resource "dynatrace_alerting" "TODO_local_name" {
-  profile_name = var.profile_name  # TODO: confirm provider arg name matches
-  management_zone_id = var.management_zone_id  # TODO: confirm provider arg name matches
+  name = var.profile_name
+  management_zone = var.management_zone_id
   # TODO: add the resource-specific blocks from the provider docs.
 }

@@ -1312,9 +1312,85 @@ resource "dynatrace_management_zone_v2" "x" {
     }
 }
 
+Describe 'Test-McpConfigSecrets.ps1 extended to .tfvars scanning' {
+    It 'flags an inline api_token = "dt0c01...." in a .tfvars file' {
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfvars-bad-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        # This is the "I'll just put it in dev.tfvars for now" mistake
+        # Copilot flagged in pass 5. Same patterns the scanner runs on
+        # .tf files must catch it here too.
+        $bad = @'
+api_token = "dt0c01.ABCDEFGHIJKLMNOPQRSTUVWX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+dt_env_url = "https://abc12345.live.dynatrace.com"
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars') -Value $bad -Encoding utf8
+
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 1
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+
+    It 'does NOT flag a .tfvars file that only contains harmless values' {
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dt-pilot-tfvars-ok-" + [System.Guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $tmpDir
+        $good = @'
+zone_name  = "Baseline-Dev"
+target_pct = 99.5
+owner      = "platform@example.test"
+'@
+        Set-Content -LiteralPath (Join-Path $tmpDir 'dev.tfvars') -Value $good -Encoding utf8
+
+        $scannerSrc = Get-Content -LiteralPath (Join-Path $script:ScriptDir 'Test-McpConfigSecrets.ps1') -Raw
+        $copy = Join-Path $tmpDir 'scan.ps1'
+        $injected = $scannerSrc.Replace('$PSScriptRoot', "'$tmpDir/scripts'")
+        Set-Content -LiteralPath $copy -Value $injected -Encoding utf8
+        $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir 'scripts')
+
+        try {
+            & pwsh -NoProfile -File $copy *>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+        } finally {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force
+        }
+    }
+}
+
 Describe 'Sync-TerraformCatalog.ps1' {
     It '-Check passes against the committed modules/terraform/configs/' {
         & (Join-Path $script:ScriptDir 'terraform/Sync-TerraformCatalog.ps1') -Check *>&1 | Out-Null
         $LASTEXITCODE | Should -Be 0
+    }
+
+    It 'renders the providerArgument LHS when the catalog specifies one' {
+        # zone_name -> name for dynatrace_management_zone_v2 is the
+        # canonical case Copilot called out in pass 5. The generated
+        # scaffold must emit `name = var.zone_name`, not
+        # `zone_name = var.zone_name`, so copying it verbatim is valid HCL.
+        $mzScaffold = Join-Path $script:RepoRoot 'modules/terraform/configs/topology/management_zone_v2/main.tf.example'
+        $mzScaffold | Should -Exist
+        $content = Get-Content -LiteralPath $mzScaffold -Raw
+        $content | Should -Match 'name\s*=\s*var\.zone_name'
+        # And NOT the old fall-back shape.
+        $content | Should -Not -Match 'zone_name\s*=\s*var\.zone_name'
+    }
+
+    It 'falls back to <name> = var.<name> with a TODO marker when no providerArgument is set' {
+        # SLO's management_zone_id intentionally has no providerArgument
+        # (it feeds the filter string, not a top-level arg). The scaffold
+        # must keep the fall-back shape with the TODO so the operator
+        # knows to move it into the right place before applying.
+        $sloScaffold = Join-Path $script:RepoRoot 'modules/terraform/configs/alerting/slo_v2/main.tf.example'
+        $sloScaffold | Should -Exist
+        $content = Get-Content -LiteralPath $sloScaffold -Raw
+        $content | Should -Match 'management_zone_id\s*=\s*var\.management_zone_id\s*#\s*TODO'
     }
 }

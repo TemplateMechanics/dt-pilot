@@ -3,10 +3,10 @@
 
 variable "dashboard_name" {
   type        = string
-  description = "Display name shown in the Dynatrace UI."
+  description = "Display name shown in the Dynatrace UI. Lives in the nested dashboard_metadata { name = ... } block -- no top-level provider argument."
 }
 
 variable "owner" {
   type        = string
-  description = "Owner email or service-account identifier."
+  description = "Owner email or service-account identifier. Lives in the nested dashboard_metadata { owner = ... } block -- no top-level provider argument."
 }

@@ -53,7 +53,12 @@
                 "type": "string",
                 "description": "HCL type literal (e.g. 'string', 'number', 'bool', 'list(string)')."
               },
-              "description": { "type": "string" }
+              "description": { "type": "string" },
+              "providerArgument": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,62}$",
+                "description": "Optional. The provider's actual top-level argument name to assign this variable to in main.tf.example (e.g. 'name' for dynatrace_management_zone_v2 whose variable is 'zone_name'). When omitted, the scaffold falls back to '<name> = var.<name>' with a TODO marker. Omit entirely when the variable maps into a nested block or has no clean top-level analogue."
+              }
             }
           }
         }

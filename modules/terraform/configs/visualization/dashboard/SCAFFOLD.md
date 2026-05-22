@@ -20,5 +20,5 @@ Dynatrace dashboard payload. Templates tend to be large -- prefer storing the bu
 
 ## Pre-declared variables
 
-- `dashboard_name` (`string`) -- Display name shown in the Dynatrace UI.
-- `owner` (`string`) -- Owner email or service-account identifier.
+- `dashboard_name` (`string`) -- Display name shown in the Dynatrace UI. Lives in the nested dashboard_metadata { name = ... } block -- no top-level provider argument.
+- `owner` (`string`) -- Owner email or service-account identifier. Lives in the nested dashboard_metadata { owner = ... } block -- no top-level provider argument.

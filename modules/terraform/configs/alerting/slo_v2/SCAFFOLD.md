@@ -23,4 +23,4 @@ Settings 2.0 SLO. evaluation_type is AGGREGATE or EVENT_BASED with different req
 - `slo_name` (`string`) -- Display name for the SLO.
 - `target_pct` (`number`) -- Target percentage (0-100). Validation lives in the consuming variables.tf.
 - `warning_pct` (`number`) -- Warning percentage (0-100). MUST be lower than target_pct.
-- `management_zone_id` (`string`) -- ID of the management zone the SLO filters on.
+- `management_zone_id` (`string`) -- ID of the management zone the SLO filters on. Used in the filter expression (e.g. 'type(SERVICE),mzId(${var.management_zone_id})') -- no top-level provider argument.

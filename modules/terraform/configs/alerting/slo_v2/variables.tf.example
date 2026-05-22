@@ -18,5 +18,5 @@ variable "warning_pct" {
 
 variable "management_zone_id" {
   type        = string
-  description = "ID of the management zone the SLO filters on."
+  description = "ID of the management zone the SLO filters on. Used in the filter expression (e.g. 'type(SERVICE),mzId(${var.management_zone_id})') -- no top-level provider argument."
 }

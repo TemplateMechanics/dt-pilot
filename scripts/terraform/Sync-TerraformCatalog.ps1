@@ -122,7 +122,20 @@ function New-ScaffoldFiles {
     $tf.Add("")
     $tf.Add("resource ""$($Entry.resourceType)"" ""TODO_local_name"" {")
     foreach ($v in $commonVars) {
-        $tf.Add("  $($v.name) = var.$($v.name)  # TODO: confirm provider arg name matches")
+        # If the catalog supplies an explicit providerArgument, use it as
+        # the LHS so a copied scaffold is valid HCL out of the box (e.g.
+        # `name = var.zone_name` for dynatrace_management_zone_v2 whose
+        # dt-pilot variable is `zone_name`). When omitted (typical for
+        # variables that feed nested blocks like notification.recipient_email
+        # or slo.management_zone_id), fall back to `<name> = var.<name>`
+        # with a TODO marker so the scaffold won't silently apply with a
+        # bogus argument name.
+        $hasProviderArg = [bool]($v.PSObject.Properties['providerArgument']) -and $v.providerArgument
+        if ($hasProviderArg) {
+            $tf.Add("  $($v.providerArgument) = var.$($v.name)")
+        } else {
+            $tf.Add("  $($v.name) = var.$($v.name)  # TODO: this variable feeds a nested block or has no top-level provider arg -- move into the right block before applying")
+        }
     }
     $tf.Add("  # TODO: add the resource-specific blocks from the provider docs.")
     $tf.Add("}")

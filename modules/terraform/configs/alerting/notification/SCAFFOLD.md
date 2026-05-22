@@ -22,4 +22,4 @@ Routes problems matching an alerting profile to email / Slack / webhook / PagerD
 
 - `notification_name` (`string`) -- Display name for the notification.
 - `alerting_profile_id` (`string`) -- ID of the alerting profile this notification fires against.
-- `recipient_email` (`string`) -- Email recipient (used by the email {} nested block; remove if the channel is not email).
+- `recipient_email` (`string`) -- Email recipient. Feeds the nested email { to = [...] } block -- no top-level provider argument.

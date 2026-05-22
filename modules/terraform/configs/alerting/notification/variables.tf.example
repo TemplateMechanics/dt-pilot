@@ -13,5 +13,5 @@ variable "alerting_profile_id" {
 
 variable "recipient_email" {
   type        = string
-  description = "Email recipient (used by the email {} nested block; remove if the channel is not email)."
+  description = "Email recipient. Feeds the nested email { to = [...] } block -- no top-level provider argument."
 }

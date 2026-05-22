@@ -1,8 +1,9 @@
 <#
 .SYNOPSIS
     Scan committed (or staged) MCP configuration files AND Terraform
-    .tf files for hardcoded secrets and live tenant URLs. The pre-commit
-    gate calls this script with -StagedOnly to block accidental commits.
+    source files (.tf, .tfvars, .tfvars.json) for hardcoded secrets
+    and live tenant URLs. The pre-commit gate calls this script with
+    -StagedOnly to block accidental commits.
 
 .DESCRIPTION
     Two scan paths:
@@ -13,12 +14,18 @@
        'description' fields and other free-text are NOT scanned, so
        realistic example URLs in prompts don't trip the scanner.
 
-    2. **Terraform .tf files** (anywhere in the repo). Line-by-line
-       regex scan. The convention is that the dynatrace provider
-       reads every credential from env vars at runtime, so the scanner
-       flags any inline credential argument (url, api_token, client_id,
-       client_secret, account_id) whose value is a string literal
-       rather than a var./local./data. reference.
+    2. **Terraform source files** -- *.tf, *.tfvars, and *.tfvars.json
+       anywhere in the repo. Line-by-line regex scan. The convention
+       is that the dynatrace provider reads every credential from env
+       vars at runtime, so the scanner flags any inline credential
+       argument (url, api_token, client_id, client_secret, account_id)
+       whose value is a string literal rather than a var./local./data.
+       reference. tfvars coverage matters because "I'll just put it in
+       dev.tfvars for now" is one of the most common ways a token leaks
+       into the repo. Per-developer tfvars files (the .gitignored
+       envs/*.local.tfvars / envs/*.local.tfvars.json convention) are
+       excluded from the full-repo walk so a local scratch file does
+       not block your push.
 
     Patterns detected in BOTH file types:
         - Dynatrace token literals (any dt0XX. prefix family)
@@ -39,11 +46,12 @@
 
 .PARAMETER StagedOnly
     Scan only files currently staged for commit (git diff --cached).
-    Default scans every *.mcp.json under .vscode/ AND every *.tf
-    discovered by a recursive walk of the repo (untracked working-tree
-    files included). Use -StagedOnly in the pre-commit hook so a local
-    scratch file doesn't block your push; the default mode is for
-    operator-driven full-repo audits.
+    Default scans every *.mcp.json under .vscode/ AND every *.tf /
+    *.tfvars / *.tfvars.json discovered by a recursive walk of the
+    repo (untracked working-tree files included, .gitignored per-
+    developer .local.tfvars files excluded). Use -StagedOnly in the
+    pre-commit hook so a local scratch file doesn't block your push;
+    the default mode is for operator-driven full-repo audits.
 
 .EXAMPLE
     ./scripts/Test-McpConfigSecrets.ps1
@@ -75,8 +83,11 @@ if ($StagedOnly) {
     foreach ($f in $staged) {
         $full = Join-Path $repoRoot $f
         if (-not (Test-Path -LiteralPath $full)) { continue }
-        if ($f -match '\.vscode[\\/](mcp|.*\.mcp)\.json$') { $mcpTargets += $full; continue }
-        if ($f -match '\.tf$')                              { $tfTargets  += $full; continue }
+        if ($f -match '\.vscode[\\/](mcp|.*\.mcp)\.json$')   { $mcpTargets += $full; continue }
+        # Match .tf, .tfvars, and .tfvars.json. Secrets accidentally
+        # committed in tfvars (the typical "I'll just put it in dev.tfvars
+        # for now" mistake) would bypass a .tf-only scan.
+        if ($f -match '\.(tf|tfvars|tfvars\.json)$')          { $tfTargets  += $full; continue }
     }
 } else {
     $mcpTargets += Get-ChildItem -LiteralPath (Join-Path $repoRoot '.vscode') -Filter '*.mcp.json' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
@@ -87,18 +98,26 @@ if ($StagedOnly) {
     # reduces to zero or one element under strict mode.
     $mcpTargets = @($mcpTargets | Where-Object { $_ -notmatch 'mcp\.session(\..*)?\.json$' })
 
-    # All committed .tf files. Use Get-ChildItem -Recurse with explicit
-    # exclusions for paths that aren't real source (.terraform/ provider
-    # cache; downloaded/ snapshots).
-    $tfTargets = @(Get-ChildItem -LiteralPath $repoRoot -Filter '*.tf' -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '[\\/](\.terraform|downloaded)[\\/]' } |
-        ForEach-Object { $_.FullName })
+    # All committed Terraform source files: .tf + .tfvars + .tfvars.json.
+    # .tfvars is the most common place a developer accidentally pastes a
+    # token while iterating ("I'll just put it in dev.tfvars for now"),
+    # so the scanner MUST cover them too. Use Get-ChildItem -Recurse with
+    # explicit exclusions for paths that aren't real source (.terraform/
+    # provider cache; downloaded/ snapshots; envs/*.local.tfvars which
+    # is .gitignored as the per-developer secrets file).
+    $tfPatterns = @('*.tf','*.tfvars','*.tfvars.json')
+    $tfTargets = @(foreach ($pat in $tfPatterns) {
+        Get-ChildItem -LiteralPath $repoRoot -Filter $pat -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '[\\/](\.terraform|downloaded)[\\/]' } |
+            Where-Object { $_.Name -notmatch '\.local\.tfvars(\.json)?$' } |
+            ForEach-Object { $_.FullName }
+    })
 }
 
 if (-not $mcpTargets) { $mcpTargets = @() }
 if (-not $tfTargets)  { $tfTargets  = @() }
 if (@($mcpTargets).Count -eq 0 -and @($tfTargets).Count -eq 0) {
-    Write-Host "No MCP configs or .tf files to scan." -ForegroundColor DarkGray
+    Write-Host "No MCP configs or Terraform source files to scan." -ForegroundColor DarkGray
     exit 0
 }
 
@@ -225,5 +244,5 @@ if ($findings.Count -gt 0) {
 
 $mcpCount = @($mcpTargets).Count   # coerce -- strict mode rejects .Count on a scalar
 $tfCount  = @($tfTargets).Count
-Write-Host "Secret-hygiene scan passed: $mcpCount MCP config file(s) + $tfCount .tf file(s)." -ForegroundColor Green
+Write-Host "Secret-hygiene scan passed: $mcpCount MCP config file(s) + $tfCount Terraform source file(s) (*.tf / *.tfvars / *.tfvars.json)." -ForegroundColor Green
 exit 0

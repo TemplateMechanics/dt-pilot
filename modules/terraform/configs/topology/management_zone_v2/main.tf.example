@@ -4,6 +4,6 @@
 # Copy this file to your project's main.tf (or merge in) and fill the TODO markers.
 
 resource "dynatrace_management_zone_v2" "TODO_local_name" {
-  zone_name = var.zone_name  # TODO: confirm provider arg name matches
+  name = var.zone_name
   # TODO: add the resource-specific blocks from the provider docs.
 }

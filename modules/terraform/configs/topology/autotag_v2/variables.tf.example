@@ -8,5 +8,5 @@ variable "tag_name" {
 
 variable "rule_expression" {
   type        = string
-  description = "DQL-like or attribute predicate that selects the entities to tag."
+  description = "DQL-like or attribute predicate that selects the entities to tag. Feeds a nested rules { } block -- no top-level provider argument."
 }
