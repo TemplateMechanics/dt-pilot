@@ -5,18 +5,30 @@
     envelope names.
 
 .DESCRIPTION
-    Five consistency checks before invoking `terraform apply`:
-      1. Schema match: envelope is dt-pilot.tfplan/v1.
-      2. Environment match: envelope's environment matches -Environment.
-      3. Workspace-content hash match: SHA-256 over the current .tf /
-         .tfvars / lockfile matches what the envelope recorded.
-      4. Freshness: envelope no older than -MaxAgeMinutes (default 30).
-      5. Binary plan file at the envelope's planBinary path still exists.
+    Consistency checks before invoking `terraform apply`, in the order
+    they fire (first failure short-circuits with a targeted message):
+
+      1. Schema match: envelope's `schema` is `dt-pilot.tfplan/v1`.
+      2. exitCode validation: field is present, is an integer, and is 0
+         (rejects malformed envelopes AND failed plans separately).
+      3. Environment match: envelope's `environment` matches -Environment.
+      4. Workspace-content hash match: SHA-256 over the current .tf /
+         .tfvars / .terraform.lock.hcl matches the envelope's `workspaceHash`.
+      5. Freshness: envelope is no older than -MaxAgeMinutes (default 30).
+      6. workingDir match: envelope's `workingDir` field is present and
+         normalizes (case-insensitive on Windows, case-sensitive on
+         Linux/macOS) to the resolved -Path; a missing field is a hard
+         failure rather than a silent skip.
+      7. planBinary shape: field is present, is a string, contains no
+         `..` path traversal, and (if rooted) resolves under -Path.
+      8. planBinary exists: the binary plan file the envelope names is
+         still on disk at the resolved location.
 
     These are consistency checks, not cryptographic integrity proof
     (the envelope is unsigned JSON). They defend against honest drift
-    (post-plan edits, environment swaps, stale reviews, missing binary)
-    rather than against an adversarial author who edits the envelope.
+    (post-plan edits, environment swaps, stale reviews, missing binary,
+    cross-workspace mistakes, malformed/hand-edited envelopes) rather
+    than against an adversarial author who edits the envelope.
 
 .PARAMETER Path
     Directory containing the .tf files. Must match the working dir the

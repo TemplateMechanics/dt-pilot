@@ -1,8 +1,16 @@
 <#
 .SYNOPSIS
     Run `terraform fmt -check` and `terraform validate` on a working
-    directory. Fast feedback loop after editing .tf files; runs in
-    pre-commit and CI.
+    directory. Fast feedback loop after editing .tf files; intended for
+    operator-driven invocation before opening a PR.
+
+    NOTE: this script is NOT wired into scripts/Pre-Commit.ps1 because
+    it requires a working `terraform` binary (and `terraform validate`
+    additionally requires an initialized workspace with provider
+    downloads). The pre-commit gate stays hermetic -- it runs manifest
+    checks, the MCP secret scanner, the catalog sync check, and Pester
+    only. Validate-Terraform should be run locally before pushing, and
+    in any CI workflow that already has terraform installed and inited.
 
 .DESCRIPTION
     Two-step structural check:

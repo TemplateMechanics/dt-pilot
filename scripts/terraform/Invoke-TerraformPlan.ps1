@@ -82,11 +82,14 @@ if ($planResult.StdOut) { Write-Host $planResult.StdOut.TrimEnd() }
 if ($planResult.StdErr) { Write-Host $planResult.StdErr.TrimEnd() }
 
 # Even on failure, we still want to write the envelope so the reviewer
-# can inspect why -- the deploy wrapper enforces exitCode == 0.
-# `terraform show -json` output can run to many MB for a large state;
-# the envelope only needs the add/change/destroy counts plus enough
-# raw text to give a reviewer a quick inline summary. Compute counts
-# from the FULL output, then truncate for storage.
+# can inspect why -- the deploy wrapper enforces exitCode == 0. On
+# SUCCESS the envelope's planJsonSummary holds the (truncated)
+# `terraform show -json` output. On FAILURE there is no binary plan to
+# show, so capture the plan command's stdout / stderr into the same
+# field instead -- otherwise the envelope just says "exit 1" with no
+# clue why and the operator has to dig CI logs back out. The CI / chat
+# transcript is the canonical source, but the artifact alone should be
+# enough to diagnose the immediate failure.
 $showJson    = ''
 $wouldAdd    = 0
 $wouldChange = 0
@@ -152,6 +155,26 @@ if ($planResult.ExitCode -eq 0) {
         } else {
             $showJson = $raw
         }
+    }
+} else {
+    # Plan failed -- no binary plan to `terraform show`. Capture the
+    # plan command's own stdout + stderr (truncated) into the envelope
+    # so the artifact is diagnosable on its own. Same 64 KiB byte cap
+    # as the success path; same UTF-8-safe truncation (here implemented
+    # inline because the inputs are typically <1 KiB).
+    $planMaxBytes = 64KB
+    $stdoutText = if ($planResult.StdOut) { $planResult.StdOut } else { '' }
+    $stderrText = if ($planResult.StdErr) { $planResult.StdErr } else { '' }
+    $combined = "terraform plan exit $($planResult.ExitCode)`n--- stdout ---`n$stdoutText`n--- stderr ---`n$stderrText"
+    if ([System.Text.Encoding]::UTF8.GetByteCount($combined) -gt $planMaxBytes) {
+        $bytes  = [System.Text.Encoding]::UTF8.GetBytes($combined)
+        $cutoff = $planMaxBytes
+        while ($cutoff -gt 0 -and $cutoff -lt $bytes.Length -and (($bytes[$cutoff] -band 0xC0) -eq 0x80)) {
+            $cutoff--
+        }
+        $showJson = [System.Text.Encoding]::UTF8.GetString($bytes, 0, $cutoff) + "`n/* truncated -- combined plan stdout + stderr exceeded 64 KiB */"
+    } else {
+        $showJson = $combined
     }
 }
 
